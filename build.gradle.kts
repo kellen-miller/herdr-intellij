@@ -4,10 +4,11 @@ plugins {
     kotlin("jvm") version "2.1.10"
     kotlin("plugin.serialization") version "2.1.10"
     id("org.jetbrains.intellij.platform") version "2.18.1"
+    id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
 }
 
 group = "dev.herdr"
-version = "0.1.0"
+version = providers.gradleProperty("pluginVersion").orElse("0.1.0-SNAPSHOT").get()
 
 repositories {
     mavenCentral()
@@ -63,5 +64,9 @@ intellijPlatform {
 tasks {
     test {
         useJUnitPlatform()
+    }
+
+    check {
+        dependsOn("ktlintCheck")
     }
 }
