@@ -1,0 +1,6 @@
+/.agent/
+/.gradle/
+/.idea/
+/.worktrees/
+/build/
+
