@@ -47,6 +47,16 @@ internal sealed interface SubscriptionAttempt {
     ) : SubscriptionAttempt
 }
 
+internal sealed interface PaneReadAttempt {
+    data class Read(
+        val value: HerdrPaneRead,
+    ) : PaneReadAttempt
+
+    data class Rejected(
+        val error: HerdrResponse.Error,
+    ) : PaneReadAttempt
+}
+
 internal data class StartedHerdr(
     val executable: Path,
     val socketTarget: Path,
@@ -79,9 +89,17 @@ internal class HerdrConnection(
     fun paneRead(
         id: String,
         paneId: String,
-    ): HerdrPaneRead {
+    ): PaneReadAttempt {
         val request = HerdrRequest.paneRead(id, paneId)
-        return HerdrProtocol.decodePaneRead(exchangeLine(request), id)
+        return when (val response = HerdrProtocol.decodeResponse(exchangeLine(request), id)) {
+            is HerdrResponse.Error -> PaneReadAttempt.Rejected(response)
+            is HerdrResponse.Success -> {
+                val read =
+                    (response.result as? HerdrResult.PaneRead)?.value
+                        ?: throw HerdrProtocolException("request did not return a pane read")
+                PaneReadAttempt.Read(read)
+            }
+        }
     }
 
     fun request(request: HerdrRequest): HerdrResponse =
@@ -132,7 +150,7 @@ internal class HerdrConnection(
         try {
             writeRequest(channel, request)
             val lineReader = HerdrLineReader(channel)
-            val response = HerdrProtocol.decodeResponse(lineReader.readLine(), request.id)
+            val response = HerdrProtocol.decodeSubscriptionResponse(lineReader.readLine(), request.id)
             if (response is HerdrResponse.Error) {
                 closeQuietly(channel)
                 return SubscriptionAttempt.Rejected(response)

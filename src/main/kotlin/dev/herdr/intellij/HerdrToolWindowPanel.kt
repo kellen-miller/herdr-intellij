@@ -122,6 +122,7 @@ internal class HerdrToolWindowPanel(
     private val reviewPath = JBLabel()
     private val reviewText = JBTextArea()
     private val reviewInstruction = JBTextField()
+    private val reviewCancelButton = JButton(HerdrBundle.message("action.cancelReview"))
     private val reviewSendButton = JButton(HerdrBundle.message("action.sendReview"))
     private var latestState: HerdrUiState = controller.currentState()
     private var presentation = LivePresentation.SPLIT
@@ -207,7 +208,13 @@ internal class HerdrToolWindowPanel(
                             }
                             is HerdrTreeItem.Agent -> {
                                 val label = latestCapabilities()[item.value.kind] ?: item.value.kind
-                                "${statusShape(item.value.status)} ${item.value.name} · $label · ${statusText(item.value.status)}"
+                                val name =
+                                    if (item.value.targetResolved) {
+                                        item.value.name
+                                    } else {
+                                        HerdrBundle.message("agent.resolving")
+                                    }
+                                "${statusShape(item.value.status)} $name · $label · ${statusText(item.value.status)}"
                             }
                             is HerdrTreeItem.Launch ->
                                 when (val launch = item.value) {
@@ -300,7 +307,13 @@ internal class HerdrToolWindowPanel(
                 add(
                     JPanel(BorderLayout(4, 0)).apply {
                         add(reviewInstruction, BorderLayout.CENTER)
-                        add(reviewSendButton, BorderLayout.EAST)
+                        add(
+                            JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0)).apply {
+                                add(reviewCancelButton)
+                                add(reviewSendButton)
+                            },
+                            BorderLayout.EAST,
+                        )
                     },
                     BorderLayout.SOUTH,
                 )
@@ -407,6 +420,7 @@ internal class HerdrToolWindowPanel(
         }
         enterButton.addActionListener { controller.sendBlockedKey("Enter") }
         escapeButton.addActionListener { controller.sendBlockedKey("Escape") }
+        reviewCancelButton.addActionListener { controller.clearSelectionReview() }
         reviewSendButton.addActionListener {
             val live = (latestState as? HerdrUiState.Live)?.view ?: return@addActionListener
             val review = live.selectionReview ?: return@addActionListener
@@ -562,7 +576,10 @@ internal class HerdrToolWindowPanel(
         val agent = selectedAgent()
         val launch = selectedLaunch()
         val workspace = selectedWorkspace()
-        identityLabel.text = launch?.let { "${it.name} · ${it.kind}" } ?: agent?.let { "${it.displayName} · ${it.name}" }
+        identityLabel.text = launch?.let { "${it.name} · ${it.kind}" } ?: agent?.let {
+            val name = if (it.targetResolved) it.name else HerdrBundle.message("agent.resolving")
+            "${it.displayName} · $name"
+        }
             ?: HerdrBundle.message("detail.noSelection")
         statusLabel.text =
             when (launch) {
@@ -619,7 +636,7 @@ internal class HerdrToolWindowPanel(
                         }.orEmpty()
             }
         val mutable = !view.stale && !requiresRefresh
-        focusButton.isEnabled = mutable && agent != null
+        focusButton.isEnabled = mutable && agent?.targetResolved == true
         val navigationRoot = workspace?.navigationRoot
         val indexedProject = navigationRoot?.let(navigator::hasIndexedProject) == true
         openProjectButton.isVisible = navigationRoot != null && !indexedProject
@@ -644,21 +661,23 @@ internal class HerdrToolWindowPanel(
                     reviewInstruction.text = review.instruction
                 }
                 reviewSendButton.isEnabled = mutable &&
+                    agent?.targetResolved == true &&
                     agent?.interactiveReady == true &&
                     agent.status != AgentStatus.BLOCKED &&
                     agent.status != AgentStatus.DONE
+                reviewCancelButton.isEnabled = true
                 composerCards.show(composer, "review")
             }
             agent?.status == AgentStatus.BLOCKED -> {
                 renderedReviewKey = null
-                val enabled = mutable && agent.name.isNotBlank()
+                val enabled = mutable && agent.targetResolved
                 blockedResponse.isEnabled = enabled
                 blockedSendButton.isEnabled = enabled
                 enterButton.isEnabled = enabled
                 escapeButton.isEnabled = enabled
                 composerCards.show(composer, "blocked")
             }
-            agent?.interactiveReady == true && agent.status != AgentStatus.DONE -> {
+            agent?.targetResolved == true && agent.interactiveReady && agent.status != AgentStatus.DONE -> {
                 renderedReviewKey = null
                 prompt.isEnabled = mutable
                 promptButton.isEnabled = mutable
@@ -679,7 +698,11 @@ internal class HerdrToolWindowPanel(
         when (item) {
             is HerdrTreeItem.Agent -> {
                 selectedLaunchId = null
-                controller.focusAgent(item.value.name)
+                if (item.value.targetResolved) {
+                    controller.focusAgent(item.value.name)
+                } else {
+                    controller.selectAgent(item.value.name)
+                }
                 if (presentation == LivePresentation.COMPACT) {
                     compactDetailVisible = true
                     compactCards.show(compactContainer, "detail")

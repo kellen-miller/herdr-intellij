@@ -39,7 +39,9 @@ class SelectionToAgentAction : AnAction() {
         val selected = live.selection ?: return null
         val workspace =
             live.workspaces.singleOrNull { workspace ->
-                workspace.agents.any { it.paneId == selected.paneId && it.name == selected.agentName }
+                workspace.agents.any {
+                    it.paneId == selected.paneId && it.name == selected.agentName && it.targetResolved
+                }
             } ?: return null
         val root = workspace.navigationRoot ?: return null
         if (project.isDisposed) {

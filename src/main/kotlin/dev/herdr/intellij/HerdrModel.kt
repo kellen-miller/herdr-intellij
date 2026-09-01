@@ -100,6 +100,7 @@ internal data class SelectionReview(
 
 internal data class AgentView(
     val name: String,
+    val targetResolved: Boolean,
     val displayName: String,
     val kind: String,
     val workspaceId: String,
@@ -513,13 +514,26 @@ internal object HerdrModel {
         current: HerdrLiveView,
         read: HerdrPaneRead,
     ): HerdrLiveView {
-        if (current.selection?.paneId != read.paneId || current.recentOutput?.revision == read.revision) {
+        val previous = current.recentOutput
+        if (current.selection?.paneId != read.paneId ||
+            previous?.let { it.text == read.text && it.truncated == read.truncated } == true
+        ) {
             return current
         }
         return current.copy(
             recentOutput = RecentOutput(read.paneId, read.text, read.revision, read.truncated),
         )
     }
+
+    fun withoutOutput(
+        current: HerdrLiveView,
+        paneId: String,
+    ): HerdrLiveView =
+        if (current.recentOutput?.paneId == paneId) {
+            current.copy(recentOutput = null)
+        } else {
+            current
+        }
 
     fun withSelectionReview(
         current: HerdrLiveView,
@@ -651,6 +665,7 @@ internal object HerdrModel {
                                 val kind = requireNotNull(agent.agent)
                                 AgentView(
                                     name = agent.name ?: agent.paneId,
+                                    targetResolved = agent.name != null,
                                     displayName = agent.name ?: agent.displayAgent ?: kind,
                                     kind = kind,
                                     workspaceId = agent.workspaceId,

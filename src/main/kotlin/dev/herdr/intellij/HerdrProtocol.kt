@@ -611,18 +611,31 @@ object HerdrProtocol {
     fun decodeResponse(
         line: String,
         expectedId: String,
+    ): HerdrResponse = decodeResponse(parseObject(line), expectedId, false)
+
+    fun decodeSubscriptionResponse(
+        line: String,
+        expectedId: String,
+    ): HerdrResponse = decodeResponse(parseObject(line), expectedId, true)
+
+    private fun decodeResponse(
+        response: JsonObject,
+        expectedId: String,
+        acceptDerivedSubscriptionErrorId: Boolean,
     ): HerdrResponse {
-        val response = parseObject(line)
         val id = response.string("id", "response id")
         requireIdentifier(expectedId, "expected response id")
-        if (id != expectedId) {
-            throw HerdrProtocolException("response id mismatch: expected $expectedId, received $id")
-        }
-
         val error = response["error"]
         val result = response["result"]
         if ((error == null) == (result == null)) {
             throw HerdrProtocolException("response must contain exactly one of result or error")
+        }
+        val derivedSubscriptionError =
+            acceptDerivedSubscriptionErrorId &&
+                error != null &&
+                id.startsWith("$expectedId:sub:")
+        if (id != expectedId && !derivedSubscriptionError) {
+            throw HerdrProtocolException("response id mismatch: expected $expectedId, received $id")
         }
         if (error != null) {
             val body = decode<ErrorBody>(error, "error body")

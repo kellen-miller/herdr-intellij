@@ -135,6 +135,54 @@ class HerdrControllerTest {
     }
 
     @Test
+    fun `bootstrap rebuilds subscriptions after replay adds a pane`() {
+        val snapshots = AtomicInteger()
+        val combinedSubscriptions = AtomicInteger()
+        val topologyRelease = CountDownLatch(1)
+        val streamsRelease = CountDownLatch(1)
+        ScriptedHerdrServer { _, request, channel ->
+            when (request.method()) {
+                "ping" -> channel.writeLine(responseFixture("ping.json", request.id()))
+                "server.agent_capabilities" ->
+                    channel.writeLine(
+                        responseFixture("agent-capabilities.json", request.id()),
+                    )
+                "session.snapshot" -> {
+                    if (snapshots.incrementAndGet() < 3) {
+                        channel.writeLine(snapshotResponse(request.id()))
+                    } else {
+                        channel.writeLine(snapshotWithAllocationResponse(request.id()))
+                    }
+                }
+                "events.subscribe" ->
+                    if (!request.hasPaneStatusSubscriptions()) {
+                        channel.writeLine(subscriptionStarted(request.id()))
+                        topologyRelease.await(5, TimeUnit.SECONDS)
+                        streamsRelease.await(5, TimeUnit.SECONDS)
+                    } else {
+                        val count = combinedSubscriptions.incrementAndGet()
+                        channel.writeLine(subscriptionStarted(request.id()))
+                        if (count == 1) {
+                            channel.writeLine(paneCreatedEvent())
+                        }
+                        topologyRelease.countDown()
+                        streamsRelease.await(5, TimeUnit.SECONDS)
+                    }
+            }
+        }.use { server ->
+            val controller = HerdrController(HerdrConnection(server.socketPath))
+
+            val live = assertIs<HerdrUiState.Live>(controller.connect().get(3, TimeUnit.SECONDS)).view
+
+            assertEquals(2, combinedSubscriptions.get())
+            assertEquals(setOf("p-agent", "p-shell", "p-new"), live.paneIds)
+            assertEquals(3, server.requests.last { it.hasPaneStatusSubscriptions() }.paneStatusSubscriptionCount())
+            streamsRelease.countDown()
+            controller.dispose()
+        }
+    }
+
+    @Test
     fun `vanished pane subscribe rejection retries at most three times`() {
         val attempts = AtomicInteger()
         val topologyRelease = CountDownLatch(1)
@@ -153,7 +201,9 @@ class HerdrControllerTest {
                         topologyRelease.await(5, TimeUnit.SECONDS)
                         combinedRelease.await(5, TimeUnit.SECONDS)
                     } else if (attempts.incrementAndGet() < 3) {
-                        channel.writeLine(errorResponse(request.id(), "pane_not_found", "pane vanished"))
+                        channel.writeLine(
+                            errorResponse("${request.id()}:sub:0:probe", "pane_not_found", "pane vanished"),
+                        )
                     } else {
                         channel.writeLine(subscriptionStarted(request.id()))
                         topologyRelease.countDown()
@@ -190,7 +240,9 @@ class HerdrControllerTest {
                         finish.await(5, TimeUnit.SECONDS)
                     } else {
                         attempts.incrementAndGet()
-                        channel.writeLine(errorResponse(request.id(), "pane_not_found", "pane vanished"))
+                        channel.writeLine(
+                            errorResponse("${request.id()}:sub:0:probe", "pane_not_found", "pane vanished"),
+                        )
                     }
             }
         }.use { server ->
@@ -258,6 +310,9 @@ class HerdrControllerTest {
 
             sendPaneClose.countDown()
             waitUntil { combinedSubscriptions.get() == 2 }
+            waitUntil {
+                (controller.currentState() as? HerdrUiState.Live)?.view?.paneIds == setOf("p-agent")
+            }
             val rebuilt = assertIs<HerdrUiState.Live>(controller.currentState()).view
             assertEquals(setOf("p-agent"), rebuilt.paneIds)
             val lastCombined = server.requests.last { it.hasPaneStatusSubscriptions() }
@@ -268,7 +323,7 @@ class HerdrControllerTest {
     }
 
     @Test
-    fun `selected output publishes only changed revisions`() {
+    fun `selected output follows real Herdr constant revisions`() {
         val reads = AtomicInteger()
         val topologyRelease = CountDownLatch(1)
         val combinedRelease = CountDownLatch(1)
@@ -291,18 +346,19 @@ class HerdrControllerTest {
                     }
                 }
                 "pane.read" -> {
-                    val revision = if (reads.incrementAndGet() < 3) 8 else 9
-                    channel.writeLine(paneReadResponse(request.id(), revision))
+                    val read = reads.incrementAndGet()
+                    val text = if (read == 1) "first output" else "second output"
+                    channel.writeLine(paneReadResponse(request.id(), 0, text))
                 }
             }
         }.use { server ->
-            val revisions = CopyOnWriteArrayList<Long>()
+            val outputs = CopyOnWriteArrayList<String>()
             val controller = HerdrController(HerdrConnection(server.socketPath))
             controller.addStateListener { state ->
                 if (state is HerdrUiState.Live) {
                     state.view.recentOutput
-                        ?.revision
-                        ?.let(revisions::add)
+                        ?.text
+                        ?.let(outputs::add)
                 }
             }
             controller.connect().get(3, TimeUnit.SECONDS)
@@ -312,8 +368,45 @@ class HerdrControllerTest {
             controller.pollSelectedNow().get(3, TimeUnit.SECONDS)
             controller.pollSelectedNow().get(3, TimeUnit.SECONDS)
 
-            assertEquals(listOf(8L, 9L), revisions.distinct())
+            assertEquals(listOf("first output", "second output"), outputs.distinct())
             combinedRelease.countDown()
+            controller.dispose()
+        }
+    }
+
+    @Test
+    fun `vanished selected pane does not disconnect a healthy runtime`() {
+        val topologyRelease = CountDownLatch(1)
+        val streamsRelease = CountDownLatch(1)
+        ScriptedHerdrServer { _, request, channel ->
+            when (request.method()) {
+                "ping" -> channel.writeLine(responseFixture("ping.json", request.id()))
+                "server.agent_capabilities" ->
+                    channel.writeLine(
+                        responseFixture("agent-capabilities.json", request.id()),
+                    )
+                "session.snapshot" -> channel.writeLine(snapshotResponse(request.id()))
+                "events.subscribe" -> {
+                    channel.writeLine(subscriptionStarted(request.id()))
+                    if (request.hasPaneStatusSubscriptions()) {
+                        topologyRelease.countDown()
+                        streamsRelease.await(5, TimeUnit.SECONDS)
+                    } else {
+                        topologyRelease.await(5, TimeUnit.SECONDS)
+                        streamsRelease.await(5, TimeUnit.SECONDS)
+                    }
+                }
+                "pane.read" -> channel.writeLine(errorResponse(request.id(), "pane_not_found", "pane vanished"))
+            }
+        }.use { server ->
+            val controller = HerdrController(HerdrConnection(server.socketPath))
+            controller.connect().get(3, TimeUnit.SECONDS)
+            controller.selectAgent("reviewer").get(3, TimeUnit.SECONDS)
+
+            val state = controller.pollSelectedNow().get(3, TimeUnit.SECONDS)
+
+            assertIs<HerdrUiState.Live>(state)
+            streamsRelease.countDown()
             controller.dispose()
         }
     }
@@ -379,6 +472,55 @@ class HerdrControllerTest {
                     .map { it.jsonPrimitive.content },
             )
             assertEquals(1, mutations.count { it.method() == "agent.focus" })
+            streamsRelease.countDown()
+            controller.dispose()
+        }
+    }
+
+    @Test
+    fun `event discovered agent cannot mutate before its name resolves`() {
+        val topologyRelease = CountDownLatch(1)
+        val sendDetected = CountDownLatch(1)
+        val streamsRelease = CountDownLatch(1)
+        ScriptedHerdrServer { _, request, channel ->
+            when (request.method()) {
+                "ping" -> channel.writeLine(responseFixture("ping.json", request.id()))
+                "server.agent_capabilities" ->
+                    channel.writeLine(
+                        responseFixture("agent-capabilities.json", request.id()),
+                    )
+                "session.snapshot" -> channel.writeLine(snapshotResponse(request.id()))
+                "events.subscribe" -> {
+                    channel.writeLine(subscriptionStarted(request.id()))
+                    if (request.hasPaneStatusSubscriptions()) {
+                        topologyRelease.countDown()
+                        sendDetected.await(5, TimeUnit.SECONDS)
+                        channel.writeLine(paneStatusEvent("working", "p-shell"))
+                        streamsRelease.await(5, TimeUnit.SECONDS)
+                    } else {
+                        topologyRelease.await(5, TimeUnit.SECONDS)
+                        streamsRelease.await(5, TimeUnit.SECONDS)
+                    }
+                }
+                "agent.focus" -> channel.writeLine("""{"id":"${request.id()}","result":{"type":"ok"}}""")
+            }
+        }.use { server ->
+            val controller = HerdrController(HerdrConnection(server.socketPath))
+            controller.connect().get(3, TimeUnit.SECONDS)
+
+            sendDetected.countDown()
+            waitUntil {
+                (controller.currentState() as? HerdrUiState.Live)
+                    ?.view
+                    ?.workspaces
+                    ?.singleOrNull()
+                    ?.agents
+                    ?.any { it.paneId == "p-shell" } == true
+            }
+            val outcome = controller.focusAgent("p-shell").get(3, TimeUnit.SECONDS)
+
+            assertIs<MutationOutcome.DefinitelyNotSent>(outcome)
+            assertTrue(server.requests.none { it.method() == "agent.focus" })
             streamsRelease.countDown()
             controller.dispose()
         }
@@ -906,14 +1048,21 @@ class HerdrControllerTest {
     private fun paneReadResponse(
         id: String,
         revision: Int,
+        text: String = "revision $revision",
     ): String =
-        """{"id":"$id","result":{"type":"pane_read","read":{"pane_id":"p-agent","workspace_id":"w-1","tab_id":"t-1","source":"recent_unwrapped","format":"text","text":"revision $revision","revision":$revision,"truncated":false}}}"""
+        """{"id":"$id","result":{"type":"pane_read","read":{"pane_id":"p-agent","workspace_id":"w-1","tab_id":"t-1","source":"recent_unwrapped","format":"text","text":"$text","revision":$revision,"truncated":false}}}"""
 
     private fun tabCreatedResponse(id: String): String =
         """{"id":"$id","result":{"type":"tab_created","tab":{"tab_id":"t-new","workspace_id":"w-1","number":2,"label":"worker_2","focused":false,"pane_count":1,"agent_status":"unknown"},"root_pane":{"pane_id":"p-new","terminal_id":"term-new","workspace_id":"w-1","tab_id":"t-new","focused":false,"cwd":"/repo/worktree","agent_status":"unknown","revision":0}}}"""
 
-    private fun paneStatusEvent(status: String): String =
-        """{"event":"pane.agent_status_changed","data":{"workspace_id":"w-1","pane_id":"p-agent","agent_status":"$status","agent":"codex","title":"Reviewer","display_agent":"Codex","state_labels":{}}}"""
+    private fun paneStatusEvent(
+        status: String,
+        paneId: String = "p-agent",
+    ): String =
+        """{"event":"pane.agent_status_changed","data":{"workspace_id":"w-1","pane_id":"$paneId","agent_status":"$status","agent":"codex","title":"Reviewer","display_agent":"Codex","state_labels":{}}}"""
+
+    private fun paneCreatedEvent(): String =
+        """{"event":"pane.created","data":{"type":"pane_created","pane":{"pane_id":"p-new","terminal_id":"term-new","workspace_id":"w-1","tab_id":"t-new","focused":false,"cwd":"/repo/worktree","agent_status":"unknown","revision":0}}}"""
 
     private fun worktreeResponse(
         id: String,

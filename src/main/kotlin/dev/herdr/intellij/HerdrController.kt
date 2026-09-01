@@ -155,7 +155,7 @@ internal class HerdrController private constructor(
         submit {
             val live = mutableLive() ?: return@submit MutationOutcome.DefinitelyNotSent("Herdr is not live")
             val matches = live.workspaces.flatMap(WorkspaceView::agents).filter { it.name == agentName }
-            if (matches.size != 1) {
+            if (matches.size != 1 || !matches.single().targetResolved) {
                 return@submit MutationOutcome.DefinitelyNotSent("Agent name is absent or ambiguous")
             }
             val request =
@@ -481,6 +481,7 @@ internal class HerdrController private constructor(
         val matches = live.workspaces.flatMap(WorkspaceView::agents).filter { it.name == selected.agentName }
         if (matches.size != 1 ||
             matches.single().paneId != selected.paneId ||
+            !matches.single().targetResolved ||
             matches.single().status != AgentStatus.BLOCKED
         ) {
             return MutationOutcome.DefinitelyNotSent("Selected agent is not blocked")
@@ -587,7 +588,7 @@ internal class HerdrController private constructor(
             .flatMap(WorkspaceView::agents)
             .filter { it.name == selected.agentName }
             .singleOrNull()
-            ?.takeIf { it.paneId == selected.paneId }
+            ?.takeIf { it.paneId == selected.paneId && it.targetResolved }
     }
 
     private fun worktreeOutcome(
@@ -796,7 +797,12 @@ internal class HerdrController private constructor(
                 var live = HerdrModel.fromSnapshot(secondSnapshot, capabilities)
                 establishBlockedBaseline(live)
                 replay.forEach { event -> live = HerdrModel.reduceEvent(live, event) }
-                val published = publish(HerdrUiState.Live(live))
+                val published =
+                    if (live.paneIds != subscribedPaneIds) {
+                        rebuildSubscription(live, live.paneIds)
+                    } else {
+                        publish(HerdrUiState.Live(live))
+                    }
                 startLiveWork()
                 return published
             }
@@ -839,6 +845,7 @@ internal class HerdrController private constructor(
         base: HerdrLiveView,
         initialPaneIds: Set<String>,
     ): HerdrUiState {
+        var currentBase = base
         var paneIds = initialPaneIds
         repeat(3) {
             val bufferedEvents = mutableListOf<HerdrEvent>()
@@ -889,8 +896,13 @@ internal class HerdrController private constructor(
             subscription?.close()
             subscription = replacement
             subscribedPaneIds = freshPaneIds
-            var live = HerdrModel.reconcile(base, snapshot)
+            var live = HerdrModel.reconcile(currentBase, snapshot)
             replay.forEach { event -> live = HerdrModel.reduceEvent(live, event) }
+            if (live.paneIds != subscribedPaneIds) {
+                currentBase = live
+                paneIds = live.paneIds
+                return@repeat
+            }
             return publish(HerdrUiState.Live(live))
         }
         throw BootstrapException("pane topology changed during three subscription rebuild attempts")
@@ -900,8 +912,11 @@ internal class HerdrController private constructor(
         val live = (state.get() as? HerdrUiState.Live)?.view ?: return state.get()
         val selected = live.selection ?: return state.get()
         return try {
-            val read = connection.paneRead(nextId("read"), selected.paneId)
-            val updated = HerdrModel.withOutput(live, read)
+            val updated =
+                when (val attempt = connection.paneRead(nextId("read"), selected.paneId)) {
+                    is PaneReadAttempt.Read -> HerdrModel.withOutput(live, attempt.value)
+                    is PaneReadAttempt.Rejected -> HerdrModel.withoutOutput(live, selected.paneId)
+                }
             if (updated == live) state.get() else publish(HerdrUiState.Live(updated))
         } catch (failure: Throwable) {
             handleDisconnect(failure.message ?: "selected pane read failed")
