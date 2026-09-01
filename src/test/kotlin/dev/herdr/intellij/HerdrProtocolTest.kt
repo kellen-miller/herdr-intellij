@@ -21,9 +21,10 @@ class HerdrProtocolTest {
 
     @Test
     fun `protocol 21 ping is rejected exactly`() {
-        val failure = assertFailsWith<HerdrProtocolMismatch> {
-            HerdrProtocol.decodeCompatiblePing(fixture("ping-21.json"), "ping-1")
-        }
+        val failure =
+            assertFailsWith<HerdrProtocolMismatch> {
+                HerdrProtocol.decodeCompatiblePing(fixture("ping-21.json"), "ping-1")
+            }
 
         assertEquals(22, failure.expected)
         assertEquals(21, failure.actual)
@@ -31,16 +32,23 @@ class HerdrProtocolTest {
 
     @Test
     fun `capability and snapshot fixtures decode to typed data`() {
-        val capabilities = HerdrProtocol.decodeCapabilities(
-            fixture("agent-capabilities.json"),
-            "capabilities-1",
-        )
+        val capabilities =
+            HerdrProtocol.decodeCapabilities(
+                fixture("agent-capabilities.json"),
+                "capabilities-1",
+            )
         val snapshot = HerdrProtocol.decodeSnapshot(fixture("session-snapshot.json"), "snapshot-1")
 
         assertEquals(23, capabilities.size)
         assertEquals("qodercli", capabilities[19].kind)
         assertEquals(2, snapshot.panes.size)
-        assertEquals("/repo/worktree", snapshot.workspaces.single().worktree?.checkoutPath)
+        assertEquals(
+            "/repo/worktree",
+            snapshot.workspaces
+                .single()
+                .worktree
+                ?.checkoutPath,
+        )
     }
 
     @Test
@@ -70,17 +78,29 @@ class HerdrProtocolTest {
         )
         assertEquals(
             "recent_unwrapped",
-            HerdrProtocol.requestObject(HerdrRequest.paneRead("read-1", "p-agent"))
-                .getValue("params").jsonObject.getValue("source").jsonPrimitive.content,
+            HerdrProtocol
+                .requestObject(HerdrRequest.paneRead("read-1", "p-agent"))
+                .getValue("params")
+                .jsonObject
+                .getValue("source")
+                .jsonPrimitive.content,
         )
-        val subscriptions = HerdrProtocol.requestObject(
-            HerdrRequest.combinedSubscription("subscribe-1", setOf("p-agent", "p-shell")),
-        ).getValue("params").jsonObject.getValue("subscriptions").jsonArray
+        val subscriptions =
+            HerdrProtocol
+                .requestObject(
+                    HerdrRequest.combinedSubscription("subscribe-1", setOf("p-agent", "p-shell")),
+                ).getValue("params")
+                .jsonObject
+                .getValue("subscriptions")
+                .jsonArray
 
         assertTrue(subscriptions.any { it.jsonObject["type"]?.jsonPrimitive?.content == "workspace.created" })
-        assertEquals(2, subscriptions.count {
-            it.jsonObject["type"]?.jsonPrimitive?.content == "pane.agent_status_changed"
-        })
+        assertEquals(
+            2,
+            subscriptions.count {
+                it.jsonObject["type"]?.jsonPrimitive?.content == "pane.agent_status_changed"
+            },
+        )
     }
 
     @Test
@@ -124,7 +144,8 @@ class HerdrProtocolTest {
         }
     }
 
-    private fun fixture(name: String): String = requireNotNull(
-        javaClass.getResource("/protocol-22/$name")
-    ).readText()
+    private fun fixture(name: String): String =
+        requireNotNull(
+            javaClass.getResource("/protocol-22/$name"),
+        ).readText()
 }

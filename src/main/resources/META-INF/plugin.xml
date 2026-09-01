@@ -19,5 +19,25 @@
             canCloseContents="false"
             factoryClass="dev.herdr.intellij.HerdrToolWindowFactory"
             icon="/icons/herdrToolWindow.svg"/>
+        <notificationGroup
+            id="Herdr Agent Status"
+            displayType="BALLOON"
+            isLogByDefault="false"/>
+        <applicationConfigurable
+            id="dev.herdr.settings"
+            parentId="tools"
+            instance="dev.herdr.intellij.HerdrConfigurable"
+            displayName="Herdr"/>
     </extensions>
+
+    <actions>
+        <action
+            id="dev.herdr.SelectionToAgent"
+            class="dev.herdr.intellij.SelectionToAgentAction"
+            text="Selection to Agent"
+            description="Review the selected code with the selected Herdr agent">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="alt shift H"/>
+        </action>
+    </actions>
 </idea-plugin>

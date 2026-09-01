@@ -7,6 +7,7 @@ internal sealed interface LaunchRecord {
     val paneId: String
     val name: String
     val kind: String
+    val arguments: List<String>
 }
 
 internal data class ProvisioningRecord(
@@ -16,6 +17,7 @@ internal data class ProvisioningRecord(
     override val paneId: String,
     override val name: String,
     override val kind: String,
+    override val arguments: List<String> = emptyList(),
 ) : LaunchRecord
 
 internal data class FailedLaunch(
@@ -27,6 +29,8 @@ internal data class FailedLaunch(
     override val kind: String,
     val message: String,
     val ambiguous: Boolean,
+    override val arguments: List<String> = emptyList(),
+    val retryConfirmed: Boolean = false,
 ) : LaunchRecord
 
 internal enum class HerdrAction {
@@ -47,7 +51,21 @@ internal data class ActionError(
     val requiresRefresh: Boolean,
 )
 
-internal data class AgentSelection(val agentName: String, val paneId: String)
+internal sealed interface WorktreeCommandOutcome {
+    data class Opened(
+        val path: String,
+        val alreadyOpen: Boolean,
+    ) : WorktreeCommandOutcome
+
+    data class Failed(
+        val error: ActionError,
+    ) : WorktreeCommandOutcome
+}
+
+internal data class AgentSelection(
+    val agentName: String,
+    val paneId: String,
+)
 
 internal data class RecentOutput(
     val paneId: String,
@@ -55,6 +73,30 @@ internal data class RecentOutput(
     val revision: Long,
     val truncated: Boolean,
 )
+
+internal data class SelectionReview(
+    val relativePath: String,
+    val startLine: Int,
+    val endLine: Int,
+    val selectedText: String,
+    val instruction: String = "",
+) {
+    fun promptText(): String =
+        buildString {
+            append("Review ")
+            append(relativePath)
+            append(':')
+            append(startLine)
+            if (endLine != startLine) {
+                append('-')
+                append(endLine)
+            }
+            append("\n\nInstruction: ")
+            append(instruction)
+            append("\n\nSelected text:\n")
+            append(selectedText)
+        }
+}
 
 internal data class AgentView(
     val name: String,
@@ -87,6 +129,7 @@ internal data class HerdrLiveView(
     val workspaces: List<WorkspaceView>,
     val selection: AgentSelection?,
     val recentOutput: RecentOutput?,
+    val selectionReview: SelectionReview?,
     val provisioning: List<ProvisioningRecord>,
     val failedLaunches: List<FailedLaunch>,
     val actionErrors: List<ActionError>,
@@ -100,22 +143,41 @@ internal data class HerdrLiveView(
 }
 
 internal sealed interface HerdrUiState {
-    data class NoServer(val socketTarget: String, val diagnostic: String? = null) : HerdrUiState
-    data class Starting(val socketTarget: String) : HerdrUiState
-    data class Connecting(val socketTarget: String, val diagnostic: String? = null) : HerdrUiState
+    data class NoServer(
+        val socketTarget: String,
+        val diagnostic: String? = null,
+    ) : HerdrUiState
+
+    data class Starting(
+        val socketTarget: String,
+    ) : HerdrUiState
+
+    data class Connecting(
+        val socketTarget: String,
+        val diagnostic: String? = null,
+    ) : HerdrUiState
+
     data class Incompatible(
         val socketTarget: String,
         val expectedProtocol: Int,
         val actualProtocol: Int?,
         val diagnostic: String,
     ) : HerdrUiState
-    data class Live(val view: HerdrLiveView) : HerdrUiState
 
-    class Disconnected(lastView: HerdrLiveView, val diagnostic: String) : HerdrUiState {
+    data class Live(
+        val view: HerdrLiveView,
+    ) : HerdrUiState
+
+    class Disconnected(
+        lastView: HerdrLiveView,
+        val diagnostic: String,
+    ) : HerdrUiState {
         val stale: HerdrLiveView = lastView.copy(stale = true)
 
-        override fun equals(other: Any?): Boolean = other is Disconnected &&
-            stale == other.stale && diagnostic == other.diagnostic
+        override fun equals(other: Any?): Boolean =
+            other is Disconnected &&
+                stale == other.stale &&
+                diagnostic == other.diagnostic
 
         override fun hashCode(): Int = 31 * stale.hashCode() + diagnostic.hashCode()
     }
@@ -139,52 +201,89 @@ internal object HerdrModel {
         provisioning: List<ProvisioningRecord> = emptyList(),
         failedLaunches: List<FailedLaunch> = emptyList(),
         actionErrors: List<ActionError> = emptyList(),
-    ): HerdrLiveView = normalize(
-        topology = HerdrTopology(
-            version = snapshot.version,
-            focusedWorkspaceId = snapshot.focusedWorkspaceId,
-            focusedTabId = snapshot.focusedTabId,
-            focusedPaneId = snapshot.focusedPaneId,
-            workspaces = snapshot.workspaces.associateBy(HerdrWorkspace::workspaceId),
-            tabs = snapshot.tabs.associateBy(HerdrTab::tabId),
-            panes = snapshot.panes.associateBy(HerdrPane::paneId),
-            agents = snapshot.agents
-                .filter { it.agent != null }
-                .associateBy(HerdrAgent::paneId),
-        ),
-        capabilities = capabilities,
-        selection = null,
-        recentOutput = null,
-        provisioning = provisioning,
-        failedLaunches = failedLaunches,
-        actionErrors = actionErrors,
-        stale = false,
-    )
-
-    fun reconcile(current: HerdrLiveView, snapshot: HerdrSnapshot): HerdrLiveView {
-        val fresh = fromSnapshot(
-            snapshot,
-            current.capabilities,
-            current.provisioning,
-            current.failedLaunches,
-            current.actionErrors,
+    ): HerdrLiveView =
+        normalize(
+            topology =
+                HerdrTopology(
+                    version = snapshot.version,
+                    focusedWorkspaceId = snapshot.focusedWorkspaceId,
+                    focusedTabId = snapshot.focusedTabId,
+                    focusedPaneId = snapshot.focusedPaneId,
+                    workspaces = snapshot.workspaces.associateBy(HerdrWorkspace::workspaceId),
+                    tabs = snapshot.tabs.associateBy(HerdrTab::tabId),
+                    panes = snapshot.panes.associateBy(HerdrPane::paneId),
+                    agents =
+                        snapshot.agents
+                            .filter { it.agent != null }
+                            .associateBy(HerdrAgent::paneId),
+                ),
+            capabilities = capabilities,
+            selection = null,
+            recentOutput = null,
+            selectionReview = null,
+            provisioning = provisioning,
+            failedLaunches = failedLaunches,
+            actionErrors = actionErrors,
+            stale = false,
         )
-        val selection = current.selection?.takeIf { selected ->
-            fresh.workspaces.any { workspace ->
-                workspace.agents.any { it.name == selected.agentName && it.paneId == selected.paneId }
+
+    fun reconcile(
+        current: HerdrLiveView,
+        snapshot: HerdrSnapshot,
+    ): HerdrLiveView {
+        val fresh = fromSnapshot(snapshot, current.capabilities)
+        val provisioning =
+            current.provisioning.filter { record ->
+                record.paneId !in fresh.topology.agents && record.paneId in fresh.topology.panes
             }
-        }
+        val failedLaunches =
+            current.failedLaunches.mapNotNull { record ->
+                when {
+                    record.paneId in fresh.topology.agents -> null
+                    record.paneId in fresh.topology.panes ->
+                        record.copy(
+                            ambiguous = false,
+                            retryConfirmed = true,
+                        )
+                    else ->
+                        record.copy(
+                            message = "Allocated pane no longer exists; create a new agent instead",
+                            ambiguous = true,
+                            retryConfirmed = false,
+                        )
+                }
+            }
+        val selection =
+            current.selection?.takeIf { selected ->
+                fresh.workspaces.any { workspace ->
+                    workspace.agents.any { it.name == selected.agentName && it.paneId == selected.paneId }
+                }
+            }
         val output = current.recentOutput?.takeIf { selection?.paneId == it.paneId }
-        return fresh.copy(selection = selection, recentOutput = output)
+        return normalize(
+            fresh.topology,
+            fresh.capabilities,
+            selection,
+            output,
+            current.selectionReview?.takeIf { selection != null },
+            provisioning,
+            failedLaunches,
+            current.actionErrors.filterNot(ActionError::requiresRefresh),
+            false,
+        )
     }
 
-    fun reduceEvent(current: HerdrLiveView, event: HerdrEvent): HerdrLiveView {
+    fun reduceEvent(
+        current: HerdrLiveView,
+        event: HerdrEvent,
+    ): HerdrLiveView {
         var topology = current.topology
         when (event) {
             is HerdrEvent.WorkspaceUpsert -> {
-                topology = topology.copy(
-                    workspaces = topology.workspaces + (event.workspace.workspaceId to event.workspace),
-                )
+                topology =
+                    topology.copy(
+                        workspaces = topology.workspaces + (event.workspace.workspaceId to event.workspace),
+                    )
             }
             is HerdrEvent.WorkspacesReplaced -> {
                 val replacements = event.workspaces.associateBy(HerdrWorkspace::workspaceId)
@@ -193,45 +292,53 @@ internal object HerdrModel {
                 topology = removeWorkspaces(topology, removed)
             }
             is HerdrEvent.WorkspaceClosed -> {
-                topology = removeWorkspaces(
-                    topology.copy(workspaces = topology.workspaces - event.workspaceId),
-                    setOf(event.workspaceId),
-                )
+                topology =
+                    removeWorkspaces(
+                        topology.copy(workspaces = topology.workspaces - event.workspaceId),
+                        setOf(event.workspaceId),
+                    )
             }
             is HerdrEvent.WorkspaceRenamed -> {
                 val workspace = topology.workspaces[event.workspaceId]
                 if (workspace != null) {
-                    topology = topology.copy(
-                        workspaces = topology.workspaces + (event.workspaceId to workspace.copy(label = event.label)),
-                    )
+                    topology =
+                        topology.copy(
+                            workspaces = topology.workspaces + (event.workspaceId to workspace.copy(label = event.label)),
+                        )
                 }
             }
             is HerdrEvent.WorkspaceFocused -> {
-                topology = topology.copy(
-                    focusedWorkspaceId = event.workspaceId,
-                    workspaces = topology.workspaces.mapValues { (id, workspace) ->
-                        workspace.copy(focused = id == event.workspaceId)
-                    },
-                )
+                topology =
+                    topology.copy(
+                        focusedWorkspaceId = event.workspaceId,
+                        workspaces =
+                            topology.workspaces.mapValues { (id, workspace) ->
+                                workspace.copy(focused = id == event.workspaceId)
+                            },
+                    )
             }
             is HerdrEvent.TabUpsert -> {
                 topology = topology.copy(tabs = topology.tabs + (event.tab.tabId to event.tab))
             }
             is HerdrEvent.TabsReplaced -> {
-                topology = topology.copy(
-                    tabs = topology.tabs.filterValues { it.workspaceId != event.workspaceId } +
-                        event.tabs.associateBy(HerdrTab::tabId),
-                )
+                topology =
+                    topology.copy(
+                        tabs =
+                            topology.tabs.filterValues { it.workspaceId != event.workspaceId } +
+                                event.tabs.associateBy(HerdrTab::tabId),
+                    )
             }
             is HerdrEvent.TabClosed -> {
-                val paneIds = topology.panes.values
-                    .filter { it.tabId == event.tabId }
-                    .mapTo(mutableSetOf(), HerdrPane::paneId)
-                topology = topology.copy(
-                    tabs = topology.tabs - event.tabId,
-                    panes = topology.panes - paneIds,
-                    agents = topology.agents - paneIds,
-                )
+                val paneIds =
+                    topology.panes.values
+                        .filter { it.tabId == event.tabId }
+                        .mapTo(mutableSetOf(), HerdrPane::paneId)
+                topology =
+                    topology.copy(
+                        tabs = topology.tabs - event.tabId,
+                        panes = topology.panes - paneIds,
+                        agents = topology.agents - paneIds,
+                    )
             }
             is HerdrEvent.TabRenamed -> {
                 val tab = topology.tabs[event.tabId]
@@ -240,81 +347,96 @@ internal object HerdrModel {
                 }
             }
             is HerdrEvent.TabFocused -> {
-                topology = topology.copy(
-                    focusedWorkspaceId = event.workspaceId,
-                    focusedTabId = event.tabId,
-                    tabs = topology.tabs.mapValues { (id, tab) ->
-                        if (tab.workspaceId == event.workspaceId) tab.copy(focused = id == event.tabId) else tab
-                    },
-                )
+                topology =
+                    topology.copy(
+                        focusedWorkspaceId = event.workspaceId,
+                        focusedTabId = event.tabId,
+                        tabs =
+                            topology.tabs.mapValues { (id, tab) ->
+                                if (tab.workspaceId == event.workspaceId) tab.copy(focused = id == event.tabId) else tab
+                            },
+                    )
             }
             is HerdrEvent.PaneUpsert -> {
                 topology = upsertPane(topology, event.pane)
             }
             is HerdrEvent.PaneClosed -> {
-                topology = topology.copy(
-                    panes = topology.panes - event.paneId,
-                    agents = topology.agents - event.paneId,
-                    focusedPaneId = topology.focusedPaneId.takeUnless { it == event.paneId },
-                )
+                topology =
+                    topology.copy(
+                        panes = topology.panes - event.paneId,
+                        agents = topology.agents - event.paneId,
+                        focusedPaneId = topology.focusedPaneId.takeUnless { it == event.paneId },
+                    )
             }
             is HerdrEvent.PaneMoved -> {
                 val agent = topology.agents[event.previousPaneId]
-                topology = topology.copy(
-                    panes = topology.panes - event.previousPaneId,
-                    agents = topology.agents - event.previousPaneId,
-                )
-                event.createdWorkspace?.let { workspace ->
-                    topology = topology.copy(
-                        workspaces = topology.workspaces + (workspace.workspaceId to workspace),
+                topology =
+                    topology.copy(
+                        panes = topology.panes - event.previousPaneId,
+                        agents = topology.agents - event.previousPaneId,
                     )
+                event.createdWorkspace?.let { workspace ->
+                    topology =
+                        topology.copy(
+                            workspaces = topology.workspaces + (workspace.workspaceId to workspace),
+                        )
                 }
                 event.createdTab?.let { tab ->
                     topology = topology.copy(tabs = topology.tabs + (tab.tabId to tab))
                 }
                 topology = upsertPane(topology, event.pane)
                 if (agent != null) {
-                    val moved = agent.copy(
-                        paneId = event.pane.paneId,
-                        workspaceId = event.pane.workspaceId,
-                        tabId = event.pane.tabId,
-                    )
+                    val moved =
+                        agent.copy(
+                            paneId = event.pane.paneId,
+                            workspaceId = event.pane.workspaceId,
+                            tabId = event.pane.tabId,
+                        )
                     topology = topology.copy(agents = topology.agents + (moved.paneId to moved))
                 }
                 event.closedWorkspaceId?.let { closed ->
-                    topology = removeWorkspaces(
-                        topology.copy(workspaces = topology.workspaces - closed),
-                        setOf(closed),
-                    )
+                    topology =
+                        removeWorkspaces(
+                            topology.copy(workspaces = topology.workspaces - closed),
+                            setOf(closed),
+                        )
                 }
                 event.closedTabId?.let { closed ->
                     topology = topology.copy(tabs = topology.tabs - closed)
                 }
             }
             is HerdrEvent.PaneFocused -> {
-                topology = topology.copy(
-                    focusedWorkspaceId = event.workspaceId,
-                    focusedPaneId = event.paneId,
-                    panes = topology.panes.mapValues { (id, pane) -> pane.copy(focused = id == event.paneId) },
-                    agents = topology.agents.mapValues { (id, agent) -> agent.copy(focused = id == event.paneId) },
-                )
+                topology =
+                    topology.copy(
+                        focusedWorkspaceId = event.workspaceId,
+                        focusedPaneId = event.paneId,
+                        panes = topology.panes.mapValues { (id, pane) -> pane.copy(focused = id == event.paneId) },
+                        agents = topology.agents.mapValues { (id, agent) -> agent.copy(focused = id == event.paneId) },
+                    )
             }
             is HerdrEvent.PaneOutputChanged -> {
                 val pane = topology.panes[event.paneId]
                 if (pane != null && event.revision > pane.revision) {
-                    topology = topology.copy(
-                        panes = topology.panes + (event.paneId to pane.copy(revision = event.revision)),
-                    )
+                    topology =
+                        topology.copy(
+                            panes = topology.panes + (event.paneId to pane.copy(revision = event.revision)),
+                        )
                 }
             }
             is HerdrEvent.PaneDetected -> {
                 val pane = topology.panes[event.paneId]
                 if (event.released) {
-                    topology = topology.copy(
-                        panes = if (pane == null) topology.panes else topology.panes +
-                            (event.paneId to pane.copy(agent = null, agentStatus = event.finalStatus ?: AgentStatus.UNKNOWN)),
-                        agents = topology.agents - event.paneId,
-                    )
+                    topology =
+                        topology.copy(
+                            panes =
+                                if (pane == null) {
+                                    topology.panes
+                                } else {
+                                    topology.panes +
+                                        (event.paneId to pane.copy(agent = null, agentStatus = event.finalStatus ?: AgentStatus.UNKNOWN))
+                                },
+                            agents = topology.agents - event.paneId,
+                        )
                 } else if (pane != null && event.agent != null) {
                     topology = upsertPane(topology, pane.copy(agent = event.agent))
                 }
@@ -322,28 +444,34 @@ internal object HerdrModel {
             is HerdrEvent.PaneStatusChanged -> {
                 val pane = topology.panes[event.paneId]
                 if (pane != null) {
-                    topology = upsertPane(
-                        topology,
-                        pane.copy(
-                            agent = event.agent ?: pane.agent,
-                            title = event.title,
-                            displayAgent = event.displayAgent,
-                            agentStatus = event.status,
-                            stateLabels = event.stateLabels,
-                        ),
-                    )
+                    topology =
+                        upsertPane(
+                            topology,
+                            pane.copy(
+                                agent = event.agent ?: pane.agent,
+                                title = event.title,
+                                displayAgent = event.displayAgent,
+                                agentStatus = event.status,
+                                stateLabels = event.stateLabels,
+                            ),
+                        )
                 }
                 val agent = topology.agents[event.paneId]
                 if (agent != null) {
-                    topology = topology.copy(
-                        agents = topology.agents + (event.paneId to agent.copy(
-                            agent = event.agent ?: agent.agent,
-                            title = event.title,
-                            displayAgent = event.displayAgent,
-                            agentStatus = event.status,
-                            stateLabels = event.stateLabels,
-                        )),
-                    )
+                    topology =
+                        topology.copy(
+                            agents =
+                                topology.agents + (
+                                    event.paneId to
+                                        agent.copy(
+                                            agent = event.agent ?: agent.agent,
+                                            title = event.title,
+                                            displayAgent = event.displayAgent,
+                                            agentStatus = event.status,
+                                            stateLabels = event.stateLabels,
+                                        )
+                                ),
+                        )
                 }
             }
             is HerdrEvent.LayoutUpdated -> Unit
@@ -354,6 +482,7 @@ internal object HerdrModel {
             current.capabilities,
             current.selection,
             current.recentOutput,
+            current.selectionReview,
             current.provisioning,
             current.failedLaunches,
             current.actionErrors,
@@ -361,20 +490,29 @@ internal object HerdrModel {
         )
     }
 
-    fun select(current: HerdrLiveView, agentName: String?): HerdrLiveView {
-        val agent = agentName?.let { wanted ->
-            current.workspaces.asSequence()
-                .flatMap { it.agents.asSequence() }
-                .firstOrNull { it.name == wanted }
-        }
+    fun select(
+        current: HerdrLiveView,
+        agentName: String?,
+    ): HerdrLiveView {
+        val agent =
+            agentName?.let { wanted ->
+                current.workspaces
+                    .asSequence()
+                    .flatMap { it.agents.asSequence() }
+                    .firstOrNull { it.name == wanted }
+            }
         val selection = agent?.let { AgentSelection(it.name, it.paneId) }
         return current.copy(
             selection = selection,
             recentOutput = current.recentOutput?.takeIf { it.paneId == selection?.paneId },
+            selectionReview = current.selectionReview?.takeIf { selection != null },
         )
     }
 
-    fun withOutput(current: HerdrLiveView, read: HerdrPaneRead): HerdrLiveView {
+    fun withOutput(
+        current: HerdrLiveView,
+        read: HerdrPaneRead,
+    ): HerdrLiveView {
         if (current.selection?.paneId != read.paneId || current.recentOutput?.revision == read.revision) {
             return current
         }
@@ -383,84 +521,199 @@ internal object HerdrModel {
         )
     }
 
+    fun withSelectionReview(
+        current: HerdrLiveView,
+        review: SelectionReview?,
+    ): HerdrLiveView =
+        current.copy(
+            selectionReview = review,
+        )
+
+    fun withAllocation(
+        current: HerdrLiveView,
+        workspace: HerdrWorkspace?,
+        tab: HerdrTab,
+        rootPane: HerdrPane,
+        record: ProvisioningRecord,
+    ): HerdrLiveView {
+        var topology =
+            current.topology.copy(
+                tabs = current.topology.tabs + (tab.tabId to tab),
+                panes = current.topology.panes + (rootPane.paneId to rootPane),
+            )
+        if (workspace != null) {
+            topology =
+                topology.copy(
+                    workspaces = topology.workspaces + (workspace.workspaceId to workspace),
+                )
+        }
+        return normalize(
+            topology,
+            current.capabilities,
+            current.selection,
+            current.recentOutput,
+            current.selectionReview,
+            current.provisioning + record,
+            current.failedLaunches.filterNot { it.id == record.id },
+            current.actionErrors,
+            current.stale,
+        )
+    }
+
+    fun withFailedLaunch(
+        current: HerdrLiveView,
+        record: FailedLaunch,
+    ): HerdrLiveView =
+        normalize(
+            current.topology,
+            current.capabilities,
+            current.selection,
+            current.recentOutput,
+            current.selectionReview,
+            current.provisioning.filterNot { it.id == record.id },
+            current.failedLaunches.filterNot { it.id == record.id } + record,
+            current.actionErrors,
+            current.stale,
+        )
+
+    fun withStartedAgent(
+        current: HerdrLiveView,
+        recordId: String,
+        agent: HerdrAgent,
+    ): HerdrLiveView =
+        normalize(
+            current.topology.copy(
+                agents = current.topology.agents + (agent.paneId to agent),
+                panes =
+                    current.topology.panes + (
+                        agent.paneId to
+                            requireNotNull(current.topology.panes[agent.paneId]).copy(
+                                agent = agent.agent,
+                                displayAgent = agent.displayAgent,
+                                agentStatus = agent.agentStatus,
+                                focused = agent.focused,
+                                revision = agent.revision,
+                            )
+                    ),
+            ),
+            current.capabilities,
+            current.selection,
+            current.recentOutput,
+            current.selectionReview,
+            current.provisioning.filterNot { it.id == recordId },
+            current.failedLaunches.filterNot { it.id == recordId },
+            current.actionErrors,
+            current.stale,
+        )
+
+    fun withActionError(
+        current: HerdrLiveView,
+        error: ActionError,
+    ): HerdrLiveView =
+        normalize(
+            current.topology,
+            current.capabilities,
+            current.selection,
+            current.recentOutput,
+            current.selectionReview,
+            current.provisioning,
+            current.failedLaunches,
+            current.actionErrors + error,
+            current.stale,
+        )
+
     private fun normalize(
         topology: HerdrTopology,
         capabilities: List<AgentCapability>,
         selection: AgentSelection?,
         recentOutput: RecentOutput?,
+        selectionReview: SelectionReview?,
         provisioning: List<ProvisioningRecord>,
         failedLaunches: List<FailedLaunch>,
         actionErrors: List<ActionError>,
         stale: Boolean,
     ): HerdrLiveView {
-        val agentsByWorkspace = topology.agents.values
-            .filter { it.agent != null }
-            .groupBy(HerdrAgent::workspaceId)
+        val agentsByWorkspace =
+            topology.agents.values
+                .filter { it.agent != null }
+                .groupBy(HerdrAgent::workspaceId)
         val recordsByWorkspace = (provisioning + failedLaunches).groupBy(LaunchRecord::workspaceId)
-        val workspaces = topology.workspaces.values
-            .sortedWith(compareBy(HerdrWorkspace::number, HerdrWorkspace::workspaceId))
-            .map { workspace ->
-                val agents = agentsByWorkspace[workspace.workspaceId].orEmpty()
-                    .sortedWith(compareBy<HerdrAgent>({ topology.tabs[it.tabId]?.number ?: Int.MAX_VALUE }, { it.paneId }))
-                    .map { agent ->
-                        val pane = topology.panes[agent.paneId]
-                        val kind = requireNotNull(agent.agent)
-                        AgentView(
-                            name = agent.name ?: agent.paneId,
-                            displayName = agent.name ?: agent.displayAgent ?: kind,
-                            kind = kind,
-                            workspaceId = agent.workspaceId,
-                            tabId = agent.tabId,
-                            paneId = agent.paneId,
-                            status = agent.agentStatus,
-                            focused = agent.focused,
-                            interactiveReady = agent.interactiveReady,
-                            cwd = agent.cwd ?: pane?.cwd,
-                            title = agent.title ?: pane?.title,
-                            stateLabels = agent.stateLabels,
-                        )
-                    }
-                val navigationRoot = workspace.worktree?.checkoutPath
-                    ?: agents.firstNotNullOfOrNull(AgentView::cwd)
-                WorkspaceView(
-                    id = workspace.workspaceId,
-                    number = workspace.number,
-                    label = workspace.label,
-                    focused = workspace.focused,
-                    navigationRoot = navigationRoot,
-                    agents = agents,
-                    launchRecords = recordsByWorkspace[workspace.workspaceId].orEmpty(),
-                )
+        val workspaces =
+            topology.workspaces.values
+                .sortedWith(compareBy(HerdrWorkspace::number, HerdrWorkspace::workspaceId))
+                .map { workspace ->
+                    val agents =
+                        agentsByWorkspace[workspace.workspaceId]
+                            .orEmpty()
+                            .sortedWith(compareBy<HerdrAgent>({ topology.tabs[it.tabId]?.number ?: Int.MAX_VALUE }, { it.paneId }))
+                            .map { agent ->
+                                val pane = topology.panes[agent.paneId]
+                                val kind = requireNotNull(agent.agent)
+                                AgentView(
+                                    name = agent.name ?: agent.paneId,
+                                    displayName = agent.name ?: agent.displayAgent ?: kind,
+                                    kind = kind,
+                                    workspaceId = agent.workspaceId,
+                                    tabId = agent.tabId,
+                                    paneId = agent.paneId,
+                                    status = agent.agentStatus,
+                                    focused = agent.focused,
+                                    interactiveReady = agent.interactiveReady,
+                                    cwd = agent.cwd ?: pane?.cwd,
+                                    title = agent.title ?: pane?.title,
+                                    stateLabels = agent.stateLabels,
+                                )
+                            }
+                    val navigationRoot =
+                        workspace.worktree?.checkoutPath
+                            ?: agents.firstNotNullOfOrNull(AgentView::cwd)
+                    WorkspaceView(
+                        id = workspace.workspaceId,
+                        number = workspace.number,
+                        label = workspace.label,
+                        focused = workspace.focused,
+                        navigationRoot = navigationRoot,
+                        agents = agents,
+                        launchRecords = recordsByWorkspace[workspace.workspaceId].orEmpty(),
+                    )
+                }
+        val validSelection =
+            selection?.takeIf { selected ->
+                workspaces.any { workspace -> workspace.agents.any { it.paneId == selected.paneId } }
             }
-        val validSelection = selection?.takeIf { selected ->
-            workspaces.any { workspace -> workspace.agents.any { it.paneId == selected.paneId } }
-        }
         return HerdrLiveView(
             serverVersion = topology.version,
             capabilities = capabilities.toList(),
             workspaces = workspaces,
             selection = validSelection,
             recentOutput = recentOutput?.takeIf { it.paneId == validSelection?.paneId },
+            selectionReview = selectionReview?.takeIf { validSelection != null },
             provisioning = provisioning.toList(),
             failedLaunches = failedLaunches.toList(),
             actionErrors = actionErrors.toList(),
             stale = stale,
-            topology = topology.copy(
-                workspaces = topology.workspaces.toMap(),
-                tabs = topology.tabs.toMap(),
-                panes = topology.panes.toMap(),
-                agents = topology.agents.toMap(),
-            ),
+            topology =
+                topology.copy(
+                    workspaces = topology.workspaces.toMap(),
+                    tabs = topology.tabs.toMap(),
+                    panes = topology.panes.toMap(),
+                    agents = topology.agents.toMap(),
+                ),
         )
     }
 
-    private fun removeWorkspaces(topology: HerdrTopology, workspaceIds: Set<String>): HerdrTopology {
-        val tabIds = topology.tabs.values
-            .filter { it.workspaceId in workspaceIds }
-            .mapTo(mutableSetOf(), HerdrTab::tabId)
-        val paneIds = topology.panes.values
-            .filter { it.workspaceId in workspaceIds }
-            .mapTo(mutableSetOf(), HerdrPane::paneId)
+    private fun removeWorkspaces(
+        topology: HerdrTopology,
+        workspaceIds: Set<String>,
+    ): HerdrTopology {
+        val tabIds =
+            topology.tabs.values
+                .filter { it.workspaceId in workspaceIds }
+                .mapTo(mutableSetOf(), HerdrTab::tabId)
+        val paneIds =
+            topology.panes.values
+                .filter { it.workspaceId in workspaceIds }
+                .mapTo(mutableSetOf(), HerdrPane::paneId)
         return topology.copy(
             tabs = topology.tabs - tabIds,
             panes = topology.panes - paneIds,
@@ -471,27 +724,33 @@ internal object HerdrModel {
         )
     }
 
-    private fun upsertPane(topology: HerdrTopology, pane: HerdrPane): HerdrTopology {
+    private fun upsertPane(
+        topology: HerdrTopology,
+        pane: HerdrPane,
+    ): HerdrTopology {
         var agents = topology.agents
         val existing = agents[pane.paneId]
         if (pane.agent == null) {
             agents = agents - pane.paneId
         } else if (existing == null) {
-            agents = agents + (pane.paneId to HerdrAgent(
-                terminalId = pane.terminalId,
-                agent = pane.agent,
-                title = pane.title,
-                displayAgent = pane.displayAgent,
-                agentStatus = pane.agentStatus,
-                stateLabels = pane.stateLabels,
-                tokens = pane.tokens,
-                workspaceId = pane.workspaceId,
-                tabId = pane.tabId,
-                paneId = pane.paneId,
-                focused = pane.focused,
-                cwd = pane.cwd,
-                revision = pane.revision,
-            ))
+            agents = agents + (
+                pane.paneId to
+                    HerdrAgent(
+                        terminalId = pane.terminalId,
+                        agent = pane.agent,
+                        title = pane.title,
+                        displayAgent = pane.displayAgent,
+                        agentStatus = pane.agentStatus,
+                        stateLabels = pane.stateLabels,
+                        tokens = pane.tokens,
+                        workspaceId = pane.workspaceId,
+                        tabId = pane.tabId,
+                        paneId = pane.paneId,
+                        focused = pane.focused,
+                        cwd = pane.cwd,
+                        revision = pane.revision,
+                    )
+            )
         }
         return topology.copy(
             panes = topology.panes + (pane.paneId to pane),

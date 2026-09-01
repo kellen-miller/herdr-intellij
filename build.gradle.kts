@@ -25,6 +25,7 @@ dependencies {
 
     intellijPlatform {
         intellijIdeaCommunity("2025.1.7.2")
+        bundledModule("intellij.platform.vcs.impl")
         pluginVerifier()
     }
 }

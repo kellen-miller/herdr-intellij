@@ -20,15 +20,31 @@ internal class HerdrTransportException(
 ) : Exception(message, cause)
 
 internal sealed interface MutationOutcome {
-    data class Applied(val response: HerdrResponse.Success) : MutationOutcome
-    data class Rejected(val error: HerdrResponse.Error) : MutationOutcome
-    data class DefinitelyNotSent(val diagnostic: String) : MutationOutcome
-    data class UnknownAfterWrite(val diagnostic: String) : MutationOutcome
+    data class Applied(
+        val response: HerdrResponse.Success,
+    ) : MutationOutcome
+
+    data class Rejected(
+        val error: HerdrResponse.Error,
+    ) : MutationOutcome
+
+    data class DefinitelyNotSent(
+        val diagnostic: String,
+    ) : MutationOutcome
+
+    data class UnknownAfterWrite(
+        val diagnostic: String,
+    ) : MutationOutcome
 }
 
 internal sealed interface SubscriptionAttempt {
-    data class Started(val subscription: HerdrSubscription) : SubscriptionAttempt
-    data class Rejected(val error: HerdrResponse.Error) : SubscriptionAttempt
+    data class Started(
+        val subscription: HerdrSubscription,
+    ) : SubscriptionAttempt
+
+    data class Rejected(
+        val error: HerdrResponse.Error,
+    ) : SubscriptionAttempt
 }
 
 internal data class StartedHerdr(
@@ -60,15 +76,19 @@ internal class HerdrConnection(
         return HerdrProtocol.decodeSnapshot(exchangeLine(request), id)
     }
 
-    fun paneRead(id: String, paneId: String): HerdrPaneRead {
+    fun paneRead(
+        id: String,
+        paneId: String,
+    ): HerdrPaneRead {
         val request = HerdrRequest.paneRead(id, paneId)
         return HerdrProtocol.decodePaneRead(exchangeLine(request), id)
     }
 
-    fun request(request: HerdrRequest): HerdrResponse = HerdrProtocol.decodeResponse(
-        exchangeLine(request),
-        request.id,
-    )
+    fun request(request: HerdrRequest): HerdrResponse =
+        HerdrProtocol.decodeResponse(
+            exchangeLine(request),
+            request.id,
+        )
 
     fun mutate(request: HerdrRequest): MutationOutcome {
         require(request.mutation) { "mutation outcome requested for a read-only method" }
@@ -103,11 +123,12 @@ internal class HerdrConnection(
     ): SubscriptionAttempt {
         require(request.method == "events.subscribe") { "subscription request must use events.subscribe" }
         ensureOpen()
-        val channel = try {
-            openChannel()
-        } catch (failure: Throwable) {
-            throw HerdrTransportException("failed to connect to $socketTarget", failure)
-        }
+        val channel =
+            try {
+                openChannel()
+            } catch (failure: Throwable) {
+                throw HerdrTransportException("failed to connect to $socketTarget", failure)
+            }
         try {
             writeRequest(channel, request)
             val lineReader = HerdrLineReader(channel)
@@ -138,20 +159,22 @@ internal class HerdrConnection(
     fun startHerdr(executableOverride: String?): StartedHerdr {
         ensureOpen()
         val executable = resolveExecutable(executableOverride)
-        val builder = ProcessBuilder(executable.toString(), "server")
-            .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-            .redirectError(ProcessBuilder.Redirect.DISCARD)
+        val builder =
+            ProcessBuilder(executable.toString(), "server")
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
         builder.environment().apply {
             clear()
             putAll(environment)
             remove("HERDR_SESSION")
             put("HERDR_SOCKET_PATH", socketTarget.toString())
         }
-        val process = try {
-            builder.start()
-        } catch (failure: IOException) {
-            throw HerdrTransportException("failed to start $executable", failure)
-        }
+        val process =
+            try {
+                builder.start()
+            } catch (failure: IOException) {
+                throw HerdrTransportException("failed to start $executable", failure)
+            }
         try {
             process.outputStream.close()
         } catch (_: IOException) {
@@ -174,11 +197,12 @@ internal class HerdrConnection(
 
     private fun exchangeLine(request: HerdrRequest): String {
         ensureOpen()
-        val channel = try {
-            openChannel()
-        } catch (failure: Throwable) {
-            throw HerdrTransportException("failed to connect to $socketTarget", failure)
-        }
+        val channel =
+            try {
+                openChannel()
+            } catch (failure: Throwable) {
+                throw HerdrTransportException("failed to connect to $socketTarget", failure)
+            }
         channel.use {
             try {
                 writeRequest(channel, request)
@@ -193,12 +217,16 @@ internal class HerdrConnection(
         }
     }
 
-    private fun openChannel(): SocketChannel = SocketChannel.open(StandardProtocolFamily.UNIX).apply {
-        configureBlocking(true)
-        connect(UnixDomainSocketAddress.of(socketTarget))
-    }
+    private fun openChannel(): SocketChannel =
+        SocketChannel.open(StandardProtocolFamily.UNIX).apply {
+            configureBlocking(true)
+            connect(UnixDomainSocketAddress.of(socketTarget))
+        }
 
-    private fun writeRequest(channel: SocketChannel, request: HerdrRequest): Int {
+    private fun writeRequest(
+        channel: SocketChannel,
+        request: HerdrRequest,
+    ): Int {
         val payload = (HerdrProtocol.encode(request) + "\n").toByteArray(StandardCharsets.UTF_8)
         val buffer = ByteBuffer.wrap(payload)
         var written = 0
@@ -220,7 +248,12 @@ internal class HerdrConnection(
             if (entry.isBlank()) {
                 return@forEach
             }
-            val candidate = Path.of(entry).resolve("herdr").toAbsolutePath().normalize()
+            val candidate =
+                Path
+                    .of(entry)
+                    .resolve("herdr")
+                    .toAbsolutePath()
+                    .normalize()
             if (Files.isRegularFile(candidate) && Files.isExecutable(candidate)) {
                 return candidate
             }
@@ -240,20 +273,28 @@ internal class HerdrConnection(
         }
     }
 
-    private class PartialWriteException(val bytesWritten: Int, cause: Throwable) : IOException(cause)
+    private class PartialWriteException(
+        val bytesWritten: Int,
+        cause: Throwable,
+    ) : IOException(cause)
 
     companion object {
         private const val WRITE_CHUNK_BYTES = 8 * 1_024
 
-        fun resolveSocketTarget(socketOverride: String?, environment: Map<String, String>): Path {
-            val configured = socketOverride?.takeIf(String::isNotBlank)
-                ?: environment["HERDR_SOCKET_PATH"]?.takeIf(String::isNotBlank)
+        fun resolveSocketTarget(
+            socketOverride: String?,
+            environment: Map<String, String>,
+        ): Path {
+            val configured =
+                socketOverride?.takeIf(String::isNotBlank)
+                    ?: environment["HERDR_SOCKET_PATH"]?.takeIf(String::isNotBlank)
             if (configured != null) {
                 return Path.of(configured).toAbsolutePath().normalize()
             }
-            val configHome = environment["XDG_CONFIG_HOME"]?.takeIf(String::isNotBlank)?.let(Path::of)
-                ?: environment["HOME"]?.takeIf(String::isNotBlank)?.let { Path.of(it, ".config") }
-                ?: throw HerdrTransportException("HOME and XDG_CONFIG_HOME are unavailable")
+            val configHome =
+                environment["XDG_CONFIG_HOME"]?.takeIf(String::isNotBlank)?.let(Path::of)
+                    ?: environment["HOME"]?.takeIf(String::isNotBlank)?.let { Path.of(it, ".config") }
+                    ?: throw HerdrTransportException("HOME and XDG_CONFIG_HOME are unavailable")
             return configHome.resolve("herdr/herdr.sock").toAbsolutePath().normalize()
         }
 
@@ -278,24 +319,25 @@ internal class HerdrSubscription(
     private lateinit var readerThread: Thread
 
     fun start() {
-        readerThread = thread(name = "herdr-subscription", isDaemon = true) {
-            try {
-                while (!intentionalClose.get()) {
-                    onEvent(HerdrProtocol.decodeEvent(lineReader.readLine()))
-                }
-            } catch (failure: Throwable) {
-                if (!intentionalClose.get()) {
-                    onDisconnect(failure.message ?: "Herdr subscription disconnected")
-                }
-            } finally {
-                owner.subscriptionClosed(this)
+        readerThread =
+            thread(name = "herdr-subscription", isDaemon = true) {
                 try {
-                    channel.close()
-                } catch (_: IOException) {
-                    // Subscription state is already terminal.
+                    while (!intentionalClose.get()) {
+                        onEvent(HerdrProtocol.decodeEvent(lineReader.readLine()))
+                    }
+                } catch (failure: Throwable) {
+                    if (!intentionalClose.get()) {
+                        onDisconnect(failure.message ?: "Herdr subscription disconnected")
+                    }
+                } finally {
+                    owner.subscriptionClosed(this)
+                    try {
+                        channel.close()
+                    } catch (_: IOException) {
+                        // Subscription state is already terminal.
+                    }
                 }
             }
-        }
     }
 
     override fun close() {
@@ -318,7 +360,9 @@ internal class HerdrSubscription(
     }
 }
 
-internal class HerdrLineReader(private val channel: SocketChannel) {
+internal class HerdrLineReader(
+    private val channel: SocketChannel,
+) {
     private val input = ByteBuffer.allocate(4_096).apply { limit(0) }
 
     fun readLine(): String {
@@ -326,11 +370,12 @@ internal class HerdrLineReader(private val channel: SocketChannel) {
         while (true) {
             if (!input.hasRemaining()) {
                 input.clear()
-                val count = try {
-                    channel.read(input)
-                } catch (failure: IOException) {
-                    throw HerdrTransportException("socket read failed", failure)
-                }
+                val count =
+                    try {
+                        channel.read(input)
+                    } catch (failure: IOException) {
+                        throw HerdrTransportException("socket read failed", failure)
+                    }
                 if (count < 0) {
                     if (output.size() == 0) {
                         throw HerdrTransportException("socket closed before a response arrived")
@@ -345,11 +390,13 @@ internal class HerdrLineReader(private val channel: SocketChannel) {
 
             val byte = input.get()
             if (byte == '\n'.code.toByte()) {
-                val bytes = output.toByteArray().let {
-                    if (it.lastOrNull() == '\r'.code.toByte()) it.copyOf(it.size - 1) else it
-                }
+                val bytes =
+                    output.toByteArray().let {
+                        if (it.lastOrNull() == '\r'.code.toByte()) it.copyOf(it.size - 1) else it
+                    }
                 return try {
-                    StandardCharsets.UTF_8.newDecoder()
+                    StandardCharsets.UTF_8
+                        .newDecoder()
                         .onMalformedInput(CodingErrorAction.REPORT)
                         .onUnmappableCharacter(CodingErrorAction.REPORT)
                         .decode(ByteBuffer.wrap(bytes))

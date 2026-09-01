@@ -14,7 +14,10 @@ import kotlinx.serialization.json.put
 
 const val HERDR_PROTOCOL_VERSION = 22
 
-open class HerdrProtocolException(message: String, cause: Throwable? = null) : Exception(message, cause)
+open class HerdrProtocolException(
+    message: String,
+    cause: Throwable? = null,
+) : Exception(message, cause)
 
 class HerdrProtocolMismatch(
     val expected: Int,
@@ -35,29 +38,51 @@ data class HerdrPong(
 )
 
 @Serializable
-data class AgentCapability(val kind: String, val label: String)
+data class AgentCapability(
+    val kind: String,
+    val label: String,
+)
 
 @Serializable
 enum class AgentStatus {
-    @SerialName("idle") IDLE,
-    @SerialName("working") WORKING,
-    @SerialName("blocked") BLOCKED,
-    @SerialName("done") DONE,
-    @SerialName("unknown") UNKNOWN,
+    @SerialName("idle")
+    IDLE,
+
+    @SerialName("working")
+    WORKING,
+
+    @SerialName("blocked")
+    BLOCKED,
+
+    @SerialName("done")
+    DONE,
+
+    @SerialName("unknown")
+    UNKNOWN,
 }
 
 @Serializable
 enum class ReadSource {
-    @SerialName("visible") VISIBLE,
-    @SerialName("recent") RECENT,
-    @SerialName("recent_unwrapped") RECENT_UNWRAPPED,
-    @SerialName("detection") DETECTION,
+    @SerialName("visible")
+    VISIBLE,
+
+    @SerialName("recent")
+    RECENT,
+
+    @SerialName("recent_unwrapped")
+    RECENT_UNWRAPPED,
+
+    @SerialName("detection")
+    DETECTION,
 }
 
 @Serializable
 enum class ReadFormat {
-    @SerialName("text") TEXT,
-    @SerialName("ansi") ANSI,
+    @SerialName("text")
+    TEXT,
+
+    @SerialName("ansi")
+    ANSI,
 }
 
 @Serializable
@@ -183,8 +208,11 @@ data class HerdrPaneLayoutPane(
 
 @Serializable
 enum class HerdrSplitDirection {
-    @SerialName("right") RIGHT,
-    @SerialName("down") DOWN,
+    @SerialName("right")
+    RIGHT,
+
+    @SerialName("down")
+    DOWN,
 }
 
 @Serializable
@@ -219,23 +247,42 @@ data class HerdrWorktreeInfo(
 )
 
 sealed interface HerdrResult {
-    data class Pong(val value: HerdrPong) : HerdrResult
-    data class Capabilities(val values: List<AgentCapability>) : HerdrResult
-    data class Snapshot(val value: HerdrSnapshot) : HerdrResult
-    data class PaneRead(val value: HerdrPaneRead) : HerdrResult
+    data class Pong(
+        val value: HerdrPong,
+    ) : HerdrResult
+
+    data class Capabilities(
+        val values: List<AgentCapability>,
+    ) : HerdrResult
+
+    data class Snapshot(
+        val value: HerdrSnapshot,
+    ) : HerdrResult
+
+    data class PaneRead(
+        val value: HerdrPaneRead,
+    ) : HerdrResult
+
     data object SubscriptionStarted : HerdrResult
+
     data class WorkspaceCreated(
         val workspace: HerdrWorkspace,
         val tab: HerdrTab,
         val rootPane: HerdrPane,
     ) : HerdrResult
-    data class TabCreated(val tab: HerdrTab, val rootPane: HerdrPane) : HerdrResult
+
+    data class TabCreated(
+        val tab: HerdrTab,
+        val rootPane: HerdrPane,
+    ) : HerdrResult
+
     data class WorktreeCreated(
         val workspace: HerdrWorkspace,
         val tab: HerdrTab,
         val rootPane: HerdrPane,
         val worktree: HerdrWorktreeInfo,
     ) : HerdrResult
+
     data class WorktreeOpened(
         val workspace: HerdrWorkspace,
         val tab: HerdrTab,
@@ -243,32 +290,94 @@ sealed interface HerdrResult {
         val worktree: HerdrWorktreeInfo,
         val alreadyOpen: Boolean,
     ) : HerdrResult
-    data class AgentStarted(val agent: HerdrAgent, val arguments: List<String>) : HerdrResult
-    data class AgentPrompted(val agent: HerdrAgent) : HerdrResult
-    data class AgentInfo(val agent: HerdrAgent) : HerdrResult
+
+    data class AgentStarted(
+        val agent: HerdrAgent,
+        val arguments: List<String>,
+    ) : HerdrResult
+
+    data class AgentPrompted(
+        val agent: HerdrAgent,
+    ) : HerdrResult
+
+    data class AgentInfo(
+        val agent: HerdrAgent,
+    ) : HerdrResult
+
     data object Ok : HerdrResult
 }
 
 sealed interface HerdrResponse {
     val id: String
 
-    data class Success(override val id: String, val result: HerdrResult) : HerdrResponse
-    data class Error(override val id: String, val code: String, val message: String) : HerdrResponse
+    data class Success(
+        override val id: String,
+        val result: HerdrResult,
+    ) : HerdrResponse
+
+    data class Error(
+        override val id: String,
+        val code: String,
+        val message: String,
+    ) : HerdrResponse
 }
 
 sealed interface HerdrEvent {
-    data class WorkspaceUpsert(val workspace: HerdrWorkspace) : HerdrEvent
-    data class WorkspacesReplaced(val workspaces: List<HerdrWorkspace>) : HerdrEvent
-    data class WorkspaceClosed(val workspaceId: String) : HerdrEvent
-    data class WorkspaceRenamed(val workspaceId: String, val label: String) : HerdrEvent
-    data class WorkspaceFocused(val workspaceId: String) : HerdrEvent
-    data class TabUpsert(val tab: HerdrTab) : HerdrEvent
-    data class TabsReplaced(val workspaceId: String, val tabs: List<HerdrTab>) : HerdrEvent
-    data class TabClosed(val workspaceId: String, val tabId: String) : HerdrEvent
-    data class TabRenamed(val workspaceId: String, val tabId: String, val label: String) : HerdrEvent
-    data class TabFocused(val workspaceId: String, val tabId: String) : HerdrEvent
-    data class PaneUpsert(val pane: HerdrPane) : HerdrEvent
-    data class PaneClosed(val workspaceId: String, val paneId: String) : HerdrEvent
+    data class WorkspaceUpsert(
+        val workspace: HerdrWorkspace,
+    ) : HerdrEvent
+
+    data class WorkspacesReplaced(
+        val workspaces: List<HerdrWorkspace>,
+    ) : HerdrEvent
+
+    data class WorkspaceClosed(
+        val workspaceId: String,
+    ) : HerdrEvent
+
+    data class WorkspaceRenamed(
+        val workspaceId: String,
+        val label: String,
+    ) : HerdrEvent
+
+    data class WorkspaceFocused(
+        val workspaceId: String,
+    ) : HerdrEvent
+
+    data class TabUpsert(
+        val tab: HerdrTab,
+    ) : HerdrEvent
+
+    data class TabsReplaced(
+        val workspaceId: String,
+        val tabs: List<HerdrTab>,
+    ) : HerdrEvent
+
+    data class TabClosed(
+        val workspaceId: String,
+        val tabId: String,
+    ) : HerdrEvent
+
+    data class TabRenamed(
+        val workspaceId: String,
+        val tabId: String,
+        val label: String,
+    ) : HerdrEvent
+
+    data class TabFocused(
+        val workspaceId: String,
+        val tabId: String,
+    ) : HerdrEvent
+
+    data class PaneUpsert(
+        val pane: HerdrPane,
+    ) : HerdrEvent
+
+    data class PaneClosed(
+        val workspaceId: String,
+        val paneId: String,
+    ) : HerdrEvent
+
     data class PaneMoved(
         val previousPaneId: String,
         val pane: HerdrPane,
@@ -277,8 +386,18 @@ sealed interface HerdrEvent {
         val closedWorkspaceId: String?,
         val closedTabId: String?,
     ) : HerdrEvent
-    data class PaneFocused(val workspaceId: String, val paneId: String) : HerdrEvent
-    data class PaneOutputChanged(val workspaceId: String, val paneId: String, val revision: Long) : HerdrEvent
+
+    data class PaneFocused(
+        val workspaceId: String,
+        val paneId: String,
+    ) : HerdrEvent
+
+    data class PaneOutputChanged(
+        val workspaceId: String,
+        val paneId: String,
+        val revision: Long,
+    ) : HerdrEvent
+
     data class PaneDetected(
         val workspaceId: String,
         val paneId: String,
@@ -286,6 +405,7 @@ sealed interface HerdrEvent {
         val released: Boolean,
         val finalStatus: AgentStatus?,
     ) : HerdrEvent
+
     data class PaneStatusChanged(
         val workspaceId: String,
         val paneId: String,
@@ -295,7 +415,10 @@ sealed interface HerdrEvent {
         val displayAgent: String?,
         val stateLabels: Map<String, String>,
     ) : HerdrEvent
-    data class LayoutUpdated(val layout: HerdrPaneLayout) : HerdrEvent
+
+    data class LayoutUpdated(
+        val layout: HerdrPaneLayout,
+    ) : HerdrEvent
 }
 
 class HerdrRequest private constructor(
@@ -305,49 +428,58 @@ class HerdrRequest private constructor(
     val mutation: Boolean,
 ) {
     companion object {
-        private val topologyEvents = listOf(
-            "workspace.created",
-            "workspace.updated",
-            "workspace.metadata_updated",
-            "workspace.renamed",
-            "workspace.moved",
-            "workspace.reordered",
-            "workspace.closed",
-            "workspace.focused",
-            "worktree.created",
-            "worktree.opened",
-            "worktree.removed",
-            "tab.created",
-            "tab.closed",
-            "tab.focused",
-            "tab.renamed",
-            "tab.moved",
-            "pane.created",
-            "pane.closed",
-            "pane.updated",
-            "pane.focused",
-            "pane.moved",
-            "pane.exited",
-            "pane.agent_detected",
-            "layout.updated",
-        )
+        private val topologyEvents =
+            listOf(
+                "workspace.created",
+                "workspace.updated",
+                "workspace.metadata_updated",
+                "workspace.renamed",
+                "workspace.moved",
+                "workspace.reordered",
+                "workspace.closed",
+                "workspace.focused",
+                "worktree.created",
+                "worktree.opened",
+                "worktree.removed",
+                "tab.created",
+                "tab.closed",
+                "tab.focused",
+                "tab.renamed",
+                "tab.moved",
+                "pane.created",
+                "pane.closed",
+                "pane.updated",
+                "pane.focused",
+                "pane.moved",
+                "pane.exited",
+                "pane.agent_detected",
+                "layout.updated",
+            )
 
         fun ping(id: String) = HerdrRequest(id, "ping", JsonObject(emptyMap()), false)
 
-        fun capabilities(id: String) = HerdrRequest(
-            id,
-            "server.agent_capabilities",
-            JsonObject(emptyMap()),
-            false,
-        )
+        fun capabilities(id: String) =
+            HerdrRequest(
+                id,
+                "server.agent_capabilities",
+                JsonObject(emptyMap()),
+                false,
+            )
 
         fun snapshot(id: String) = HerdrRequest(id, "session.snapshot", JsonObject(emptyMap()), false)
 
         fun topologySubscription(id: String) = subscription(id, emptySet())
 
-        fun combinedSubscription(id: String, paneIds: Set<String>) = subscription(id, paneIds)
+        fun combinedSubscription(
+            id: String,
+            paneIds: Set<String>,
+        ) = subscription(id, paneIds)
 
-        fun paneRead(id: String, paneId: String, lines: Int = 400): HerdrRequest {
+        fun paneRead(
+            id: String,
+            paneId: String,
+            lines: Int = 400,
+        ): HerdrRequest {
             HerdrProtocol.requireIdentifier(paneId, "pane id")
             return HerdrRequest(
                 id,
@@ -363,8 +495,13 @@ class HerdrRequest private constructor(
             )
         }
 
-        fun mutation(id: String, method: String, params: JsonObject): HerdrRequest {
-            if (method !in setOf(
+        fun mutation(
+            id: String,
+            method: String,
+            params: JsonObject,
+        ): HerdrRequest {
+            if (method !in
+                setOf(
                     "workspace.create",
                     "tab.create",
                     "worktree.create",
@@ -380,19 +517,25 @@ class HerdrRequest private constructor(
             return HerdrRequest(id, method, params, true)
         }
 
-        private fun subscription(id: String, paneIds: Set<String>): HerdrRequest {
+        private fun subscription(
+            id: String,
+            paneIds: Set<String>,
+        ): HerdrRequest {
             paneIds.forEach { HerdrProtocol.requireIdentifier(it, "pane id") }
-            val subscriptions = buildJsonArray {
-                topologyEvents.forEach { type ->
-                    add(buildJsonObject { put("type", type) })
+            val subscriptions =
+                buildJsonArray {
+                    topologyEvents.forEach { type ->
+                        add(buildJsonObject { put("type", type) })
+                    }
+                    paneIds.sorted().forEach { paneId ->
+                        add(
+                            buildJsonObject {
+                                put("type", "pane.agent_status_changed")
+                                put("pane_id", paneId)
+                            },
+                        )
+                    }
                 }
-                paneIds.sorted().forEach { paneId ->
-                    add(buildJsonObject {
-                        put("type", "pane.agent_status_changed")
-                        put("pane_id", paneId)
-                    })
-                }
-            }
             return HerdrRequest(
                 id,
                 "events.subscribe",
@@ -404,10 +547,11 @@ class HerdrRequest private constructor(
 }
 
 private object HerdrProtocolJson {
-    val codec = Json {
-        ignoreUnknownKeys = true
-        explicitNulls = false
-    }
+    val codec =
+        Json {
+            ignoreUnknownKeys = true
+            explicitNulls = false
+        }
 }
 
 object HerdrProtocol {
@@ -423,35 +567,51 @@ object HerdrProtocol {
         }
     }
 
-    fun decodeCompatiblePing(line: String, expectedId: String): HerdrPong {
+    fun decodeCompatiblePing(
+        line: String,
+        expectedId: String,
+    ): HerdrPong {
         val response = decodeResponse(line, expectedId)
-        val pong = (response as? HerdrResponse.Success)?.result as? HerdrResult.Pong
-            ?: throw HerdrProtocolException("ping did not return pong")
+        val pong =
+            (response as? HerdrResponse.Success)?.result as? HerdrResult.Pong
+                ?: throw HerdrProtocolException("ping did not return pong")
         if (pong.value.protocol != HERDR_PROTOCOL_VERSION) {
             throw HerdrProtocolMismatch(HERDR_PROTOCOL_VERSION, pong.value.protocol)
         }
         return pong.value
     }
 
-    fun decodeCapabilities(line: String, expectedId: String): List<AgentCapability> {
+    fun decodeCapabilities(
+        line: String,
+        expectedId: String,
+    ): List<AgentCapability> {
         val response = decodeResponse(line, expectedId)
         return ((response as? HerdrResponse.Success)?.result as? HerdrResult.Capabilities)?.values
             ?: throw HerdrProtocolException("request did not return agent capabilities")
     }
 
-    fun decodeSnapshot(line: String, expectedId: String): HerdrSnapshot {
+    fun decodeSnapshot(
+        line: String,
+        expectedId: String,
+    ): HerdrSnapshot {
         val response = decodeResponse(line, expectedId)
         return ((response as? HerdrResponse.Success)?.result as? HerdrResult.Snapshot)?.value
             ?: throw HerdrProtocolException("request did not return a session snapshot")
     }
 
-    fun decodePaneRead(line: String, expectedId: String): HerdrPaneRead {
+    fun decodePaneRead(
+        line: String,
+        expectedId: String,
+    ): HerdrPaneRead {
         val response = decodeResponse(line, expectedId)
         return ((response as? HerdrResponse.Success)?.result as? HerdrResult.PaneRead)?.value
             ?: throw HerdrProtocolException("request did not return a pane read")
     }
 
-    fun decodeResponse(line: String, expectedId: String): HerdrResponse {
+    fun decodeResponse(
+        line: String,
+        expectedId: String,
+    ): HerdrResponse {
         val response = parseObject(line)
         val id = response.string("id", "response id")
         requireIdentifier(expectedId, "expected response id")
@@ -475,271 +635,300 @@ object HerdrProtocol {
 
         val resultObject = result!!.objectValue("result")
         val type = resultObject.string("type", "result type")
-        val typed = when (type) {
-            "pong" -> {
-                val value = decode<PongResult>(resultObject, "pong result")
-                if (value.version.isBlank()) {
-                    throw HerdrProtocolException("pong version is blank")
-                }
-                HerdrResult.Pong(HerdrPong(value.version, value.protocol, value.capabilities))
-            }
-            "agent_capabilities" -> {
-                val values = decode<CapabilitiesResult>(resultObject, "agent capabilities").capabilities
-                values.forEach {
-                    requireIdentifier(it.kind, "agent capability kind")
-                    if (it.label.isBlank()) {
-                        throw HerdrProtocolException("agent capability label is blank")
+        val typed =
+            when (type) {
+                "pong" -> {
+                    val value = decode<PongResult>(resultObject, "pong result")
+                    if (value.version.isBlank()) {
+                        throw HerdrProtocolException("pong version is blank")
                     }
+                    HerdrResult.Pong(HerdrPong(value.version, value.protocol, value.capabilities))
                 }
-                if (values.map(AgentCapability::kind).distinct().size != values.size) {
-                    throw HerdrProtocolException("agent capability kinds are not unique")
+                "agent_capabilities" -> {
+                    val values = decode<CapabilitiesResult>(resultObject, "agent capabilities").capabilities
+                    values.forEach {
+                        requireIdentifier(it.kind, "agent capability kind")
+                        if (it.label.isBlank()) {
+                            throw HerdrProtocolException("agent capability label is blank")
+                        }
+                    }
+                    if (values.map(AgentCapability::kind).distinct().size != values.size) {
+                        throw HerdrProtocolException("agent capability kinds are not unique")
+                    }
+                    HerdrResult.Capabilities(values)
                 }
-                HerdrResult.Capabilities(values)
+                "session_snapshot" -> {
+                    val snapshot = decode<SnapshotResult>(resultObject, "session snapshot").snapshot
+                    validateSnapshot(snapshot)
+                    HerdrResult.Snapshot(snapshot)
+                }
+                "pane_read" -> {
+                    val read = decode<PaneReadResult>(resultObject, "pane read").read
+                    validatePaneRead(read)
+                    HerdrResult.PaneRead(read)
+                }
+                "subscription_started" -> HerdrResult.SubscriptionStarted
+                "workspace_created" -> {
+                    val value = decode<WorkspaceCreatedResult>(resultObject, "workspace created")
+                    validateAllocation(value.workspace, value.tab, value.rootPane)
+                    HerdrResult.WorkspaceCreated(value.workspace, value.tab, value.rootPane)
+                }
+                "tab_created" -> {
+                    val value = decode<TabCreatedResult>(resultObject, "tab created")
+                    validateTab(value.tab)
+                    validatePane(value.rootPane)
+                    HerdrResult.TabCreated(value.tab, value.rootPane)
+                }
+                "worktree_created" -> {
+                    val value = decode<WorktreeCreatedResult>(resultObject, "worktree created")
+                    validateAllocation(value.workspace, value.tab, value.rootPane)
+                    validateWorktreeInfo(value.worktree)
+                    HerdrResult.WorktreeCreated(value.workspace, value.tab, value.rootPane, value.worktree)
+                }
+                "worktree_opened" -> {
+                    val value = decode<WorktreeOpenedResult>(resultObject, "worktree opened")
+                    validateAllocation(value.workspace, value.tab, value.rootPane)
+                    validateWorktreeInfo(value.worktree)
+                    HerdrResult.WorktreeOpened(
+                        value.workspace,
+                        value.tab,
+                        value.rootPane,
+                        value.worktree,
+                        value.alreadyOpen,
+                    )
+                }
+                "agent_started" -> {
+                    val value = decode<AgentStartedResult>(resultObject, "agent started")
+                    validateAgent(value.agent)
+                    HerdrResult.AgentStarted(value.agent, value.argv)
+                }
+                "agent_prompted" -> {
+                    val value = decode<AgentResult>(resultObject, "agent prompted")
+                    validateAgent(value.agent)
+                    HerdrResult.AgentPrompted(value.agent)
+                }
+                "agent_info" -> {
+                    val value = decode<AgentResult>(resultObject, "agent info")
+                    validateAgent(value.agent)
+                    HerdrResult.AgentInfo(value.agent)
+                }
+                "ok" -> HerdrResult.Ok
+                else -> throw HerdrProtocolException("unknown result type: $type")
             }
-            "session_snapshot" -> {
-                val snapshot = decode<SnapshotResult>(resultObject, "session snapshot").snapshot
-                validateSnapshot(snapshot)
-                HerdrResult.Snapshot(snapshot)
-            }
-            "pane_read" -> {
-                val read = decode<PaneReadResult>(resultObject, "pane read").read
-                validatePaneRead(read)
-                HerdrResult.PaneRead(read)
-            }
-            "subscription_started" -> HerdrResult.SubscriptionStarted
-            "workspace_created" -> {
-                val value = decode<WorkspaceCreatedResult>(resultObject, "workspace created")
-                validateAllocation(value.workspace, value.tab, value.rootPane)
-                HerdrResult.WorkspaceCreated(value.workspace, value.tab, value.rootPane)
-            }
-            "tab_created" -> {
-                val value = decode<TabCreatedResult>(resultObject, "tab created")
-                validateTab(value.tab)
-                validatePane(value.rootPane)
-                HerdrResult.TabCreated(value.tab, value.rootPane)
-            }
-            "worktree_created" -> {
-                val value = decode<WorktreeCreatedResult>(resultObject, "worktree created")
-                validateAllocation(value.workspace, value.tab, value.rootPane)
-                validateWorktreeInfo(value.worktree)
-                HerdrResult.WorktreeCreated(value.workspace, value.tab, value.rootPane, value.worktree)
-            }
-            "worktree_opened" -> {
-                val value = decode<WorktreeOpenedResult>(resultObject, "worktree opened")
-                validateAllocation(value.workspace, value.tab, value.rootPane)
-                validateWorktreeInfo(value.worktree)
-                HerdrResult.WorktreeOpened(
-                    value.workspace,
-                    value.tab,
-                    value.rootPane,
-                    value.worktree,
-                    value.alreadyOpen,
-                )
-            }
-            "agent_started" -> {
-                val value = decode<AgentStartedResult>(resultObject, "agent started")
-                validateAgent(value.agent)
-                HerdrResult.AgentStarted(value.agent, value.argv)
-            }
-            "agent_prompted" -> {
-                val value = decode<AgentResult>(resultObject, "agent prompted")
-                validateAgent(value.agent)
-                HerdrResult.AgentPrompted(value.agent)
-            }
-            "agent_info" -> {
-                val value = decode<AgentResult>(resultObject, "agent info")
-                validateAgent(value.agent)
-                HerdrResult.AgentInfo(value.agent)
-            }
-            "ok" -> HerdrResult.Ok
-            else -> throw HerdrProtocolException("unknown result type: $type")
-        }
         return HerdrResponse.Success(id, typed)
     }
 
     fun decodeEvent(line: String): HerdrEvent {
         val envelope = parseObject(line)
         val event = envelope.string("event", "event tag")
-        val data = envelope["data"]?.objectValue("event data")
-            ?: throw HerdrProtocolException("event is missing data")
-        val value = when (event) {
-            "workspace.created" -> HerdrEvent.WorkspaceUpsert(
-                decodeTyped<WorkspacePayload>(data, "workspace_created", "workspace created").workspace,
-            )
-            "workspace.updated" -> HerdrEvent.WorkspaceUpsert(
-                decodeTyped<WorkspacePayload>(data, "workspace_updated", "workspace updated").workspace,
-            )
-            "workspace.metadata_updated" -> HerdrEvent.WorkspaceUpsert(
-                decodeTyped<WorkspacePayload>(data, "workspace_metadata_updated", "workspace metadata").workspace,
-            )
-            "workspace.closed" -> HerdrEvent.WorkspaceClosed(
-                decodeTyped<WorkspaceClosedPayload>(data, "workspace_closed", "workspace closed").workspaceId,
-            )
-            "workspace.renamed" -> {
-                val payload = decodeTyped<WorkspaceRenamedPayload>(data, "workspace_renamed", "workspace renamed")
-                HerdrEvent.WorkspaceRenamed(payload.workspaceId, payload.label)
-            }
-            "workspace.moved" -> {
-                val payload = decodeTyped<WorkspaceMovedPayload>(
-                    data,
-                    "workspace_moved",
-                    "workspace moved",
-                )
-                requireIdentifier(payload.workspaceId, "moved workspace id")
-                if (payload.insertIndex < 0) {
-                    throw HerdrProtocolException("workspace insert index is negative")
+        val data =
+            envelope["data"]?.objectValue("event data")
+                ?: throw HerdrProtocolException("event is missing data")
+        val value =
+            when (event) {
+                "workspace.created" ->
+                    HerdrEvent.WorkspaceUpsert(
+                        decodeTyped<WorkspacePayload>(data, "workspace_created", "workspace created").workspace,
+                    )
+                "workspace.updated" ->
+                    HerdrEvent.WorkspaceUpsert(
+                        decodeTyped<WorkspacePayload>(data, "workspace_updated", "workspace updated").workspace,
+                    )
+                "workspace.metadata_updated" ->
+                    HerdrEvent.WorkspaceUpsert(
+                        decodeTyped<WorkspacePayload>(data, "workspace_metadata_updated", "workspace metadata").workspace,
+                    )
+                "workspace.closed" ->
+                    HerdrEvent.WorkspaceClosed(
+                        decodeTyped<WorkspaceClosedPayload>(data, "workspace_closed", "workspace closed").workspaceId,
+                    )
+                "workspace.renamed" -> {
+                    val payload = decodeTyped<WorkspaceRenamedPayload>(data, "workspace_renamed", "workspace renamed")
+                    HerdrEvent.WorkspaceRenamed(payload.workspaceId, payload.label)
                 }
-                HerdrEvent.WorkspacesReplaced(payload.workspaces)
-            }
-            "workspace.reordered" -> {
-                val payload = decodeTyped<WorkspaceReorderedPayload>(
-                    data,
-                    "workspace_reordered",
-                    "workspace reordered",
-                )
-                payload.workspaceIds.forEach { requireIdentifier(it, "reordered workspace id") }
-                payload.beforeWorkspaceId?.let { requireIdentifier(it, "workspace reorder anchor") }
-                HerdrEvent.WorkspacesReplaced(payload.workspaces)
-            }
-            "workspace.focused" -> HerdrEvent.WorkspaceFocused(
-                decodeTyped<WorkspaceFocusedPayload>(data, "workspace_focused", "workspace focused").workspaceId,
-            )
-            "worktree.created" -> {
-                val payload = decodeTyped<WorktreeCreatedPayload>(data, "worktree_created", "worktree created")
-                validateWorktreeInfo(payload.worktree)
-                HerdrEvent.WorkspaceUpsert(payload.workspace)
-            }
-            "worktree.opened" -> {
-                val payload = decodeTyped<WorktreeOpenedPayload>(data, "worktree_opened", "worktree opened")
-                validateWorktreeInfo(payload.worktree)
-                HerdrEvent.WorkspaceUpsert(payload.workspace)
-            }
-            "worktree.removed" -> {
-                val payload = decodeTyped<WorktreeRemovedPayload>(data, "worktree_removed", "worktree removed")
-                validateWorktreeInfo(payload.worktree)
-                payload.workspace?.let(HerdrEvent::WorkspaceUpsert)
-                    ?: HerdrEvent.WorkspaceClosed(payload.workspaceId)
-            }
-            "tab.created" -> HerdrEvent.TabUpsert(
-                decodeTyped<TabPayload>(data, "tab_created", "tab created").tab,
-            )
-            "tab.closed" -> {
-                val payload = decodeTyped<TabIdentityPayload>(data, "tab_closed", "tab closed")
-                HerdrEvent.TabClosed(payload.workspaceId, payload.tabId)
-            }
-            "tab.renamed" -> {
-                val payload = decodeTyped<TabRenamedPayload>(data, "tab_renamed", "tab renamed")
-                HerdrEvent.TabRenamed(payload.workspaceId, payload.tabId, payload.label)
-            }
-            "tab.moved" -> {
-                val payload = decodeTyped<TabMovedPayload>(data, "tab_moved", "tab moved")
-                requireIdentifier(payload.tabId, "moved tab id")
-                if (payload.insertIndex < 0) {
-                    throw HerdrProtocolException("tab insert index is negative")
-                }
-                HerdrEvent.TabsReplaced(payload.workspaceId, payload.tabs)
-            }
-            "tab.focused" -> {
-                val payload = decodeTyped<TabIdentityPayload>(data, "tab_focused", "tab focused")
-                HerdrEvent.TabFocused(payload.workspaceId, payload.tabId)
-            }
-            "pane.created" -> HerdrEvent.PaneUpsert(
-                decodeTyped<PanePayload>(data, "pane_created", "pane created").pane,
-            )
-            "pane.updated" -> HerdrEvent.PaneUpsert(
-                decodeTyped<PanePayload>(data, "pane_updated", "pane updated").pane,
-            )
-            "pane.closed" -> {
-                val payload = decodeTyped<PaneIdentityPayload>(data, "pane_closed", "pane closed")
-                HerdrEvent.PaneClosed(payload.workspaceId, payload.paneId)
-            }
-            "pane.exited" -> {
-                val payload = decodeTyped<PaneIdentityPayload>(data, "pane_exited", "pane exited")
-                HerdrEvent.PaneClosed(payload.workspaceId, payload.paneId)
-            }
-            "pane.focused" -> {
-                val payload = decodeTyped<PaneIdentityPayload>(data, "pane_focused", "pane focused")
-                HerdrEvent.PaneFocused(payload.workspaceId, payload.paneId)
-            }
-            "pane.moved" -> {
-                val payload = decodeTyped<PaneMovedPayload>(data, "pane_moved", "pane moved")
-                requireIdentifier(payload.previousWorkspaceId, "previous workspace id")
-                requireIdentifier(payload.previousTabId, "previous tab id")
-                HerdrEvent.PaneMoved(
-                    payload.previousPaneId,
-                    payload.pane,
-                    payload.createdWorkspace,
-                    payload.createdTab,
-                    payload.closedWorkspaceId,
-                    payload.closedTabId,
-                )
-            }
-            "pane.output_changed" -> {
-                val payload = decodeTyped<PaneOutputPayload>(data, "pane_output_changed", "pane output")
-                HerdrEvent.PaneOutputChanged(payload.workspaceId, payload.paneId, payload.revision)
-            }
-            "pane.agent_detected" -> {
-                val payload = decodeTyped<PaneDetectedPayload>(data, "pane_agent_detected", "pane detected")
-                HerdrEvent.PaneDetected(
-                    payload.workspaceId,
-                    payload.paneId,
-                    payload.agent,
-                    payload.released,
-                    payload.finalStatus,
-                )
-            }
-            "pane.agent_status_changed" -> {
-                val payload = decode<PaneStatusPayload>(data, "pane status")
-                data["type"]?.jsonPrimitive?.content?.let { type ->
-                    if (type != "pane_agent_status_changed") {
-                        throw HerdrProtocolException("unexpected pane status data type: $type")
+                "workspace.moved" -> {
+                    val payload =
+                        decodeTyped<WorkspaceMovedPayload>(
+                            data,
+                            "workspace_moved",
+                            "workspace moved",
+                        )
+                    requireIdentifier(payload.workspaceId, "moved workspace id")
+                    if (payload.insertIndex < 0) {
+                        throw HerdrProtocolException("workspace insert index is negative")
                     }
+                    HerdrEvent.WorkspacesReplaced(payload.workspaces)
                 }
-                HerdrEvent.PaneStatusChanged(
-                    payload.workspaceId,
-                    payload.paneId,
-                    payload.agentStatus,
-                    payload.agent,
-                    payload.title,
-                    payload.displayAgent,
-                    payload.stateLabels,
-                )
+                "workspace.reordered" -> {
+                    val payload =
+                        decodeTyped<WorkspaceReorderedPayload>(
+                            data,
+                            "workspace_reordered",
+                            "workspace reordered",
+                        )
+                    payload.workspaceIds.forEach { requireIdentifier(it, "reordered workspace id") }
+                    payload.beforeWorkspaceId?.let { requireIdentifier(it, "workspace reorder anchor") }
+                    HerdrEvent.WorkspacesReplaced(payload.workspaces)
+                }
+                "workspace.focused" ->
+                    HerdrEvent.WorkspaceFocused(
+                        decodeTyped<WorkspaceFocusedPayload>(data, "workspace_focused", "workspace focused").workspaceId,
+                    )
+                "worktree.created" -> {
+                    val payload = decodeTyped<WorktreeCreatedPayload>(data, "worktree_created", "worktree created")
+                    validateWorktreeInfo(payload.worktree)
+                    HerdrEvent.WorkspaceUpsert(payload.workspace)
+                }
+                "worktree.opened" -> {
+                    val payload = decodeTyped<WorktreeOpenedPayload>(data, "worktree_opened", "worktree opened")
+                    validateWorktreeInfo(payload.worktree)
+                    HerdrEvent.WorkspaceUpsert(payload.workspace)
+                }
+                "worktree.removed" -> {
+                    val payload = decodeTyped<WorktreeRemovedPayload>(data, "worktree_removed", "worktree removed")
+                    validateWorktreeInfo(payload.worktree)
+                    payload.workspace?.let(HerdrEvent::WorkspaceUpsert)
+                        ?: HerdrEvent.WorkspaceClosed(payload.workspaceId)
+                }
+                "tab.created" ->
+                    HerdrEvent.TabUpsert(
+                        decodeTyped<TabPayload>(data, "tab_created", "tab created").tab,
+                    )
+                "tab.closed" -> {
+                    val payload = decodeTyped<TabIdentityPayload>(data, "tab_closed", "tab closed")
+                    HerdrEvent.TabClosed(payload.workspaceId, payload.tabId)
+                }
+                "tab.renamed" -> {
+                    val payload = decodeTyped<TabRenamedPayload>(data, "tab_renamed", "tab renamed")
+                    HerdrEvent.TabRenamed(payload.workspaceId, payload.tabId, payload.label)
+                }
+                "tab.moved" -> {
+                    val payload = decodeTyped<TabMovedPayload>(data, "tab_moved", "tab moved")
+                    requireIdentifier(payload.tabId, "moved tab id")
+                    if (payload.insertIndex < 0) {
+                        throw HerdrProtocolException("tab insert index is negative")
+                    }
+                    HerdrEvent.TabsReplaced(payload.workspaceId, payload.tabs)
+                }
+                "tab.focused" -> {
+                    val payload = decodeTyped<TabIdentityPayload>(data, "tab_focused", "tab focused")
+                    HerdrEvent.TabFocused(payload.workspaceId, payload.tabId)
+                }
+                "pane.created" ->
+                    HerdrEvent.PaneUpsert(
+                        decodeTyped<PanePayload>(data, "pane_created", "pane created").pane,
+                    )
+                "pane.updated" ->
+                    HerdrEvent.PaneUpsert(
+                        decodeTyped<PanePayload>(data, "pane_updated", "pane updated").pane,
+                    )
+                "pane.closed" -> {
+                    val payload = decodeTyped<PaneIdentityPayload>(data, "pane_closed", "pane closed")
+                    HerdrEvent.PaneClosed(payload.workspaceId, payload.paneId)
+                }
+                "pane.exited" -> {
+                    val payload = decodeTyped<PaneIdentityPayload>(data, "pane_exited", "pane exited")
+                    HerdrEvent.PaneClosed(payload.workspaceId, payload.paneId)
+                }
+                "pane.focused" -> {
+                    val payload = decodeTyped<PaneIdentityPayload>(data, "pane_focused", "pane focused")
+                    HerdrEvent.PaneFocused(payload.workspaceId, payload.paneId)
+                }
+                "pane.moved" -> {
+                    val payload = decodeTyped<PaneMovedPayload>(data, "pane_moved", "pane moved")
+                    requireIdentifier(payload.previousWorkspaceId, "previous workspace id")
+                    requireIdentifier(payload.previousTabId, "previous tab id")
+                    HerdrEvent.PaneMoved(
+                        payload.previousPaneId,
+                        payload.pane,
+                        payload.createdWorkspace,
+                        payload.createdTab,
+                        payload.closedWorkspaceId,
+                        payload.closedTabId,
+                    )
+                }
+                "pane.output_changed" -> {
+                    val payload = decodeTyped<PaneOutputPayload>(data, "pane_output_changed", "pane output")
+                    HerdrEvent.PaneOutputChanged(payload.workspaceId, payload.paneId, payload.revision)
+                }
+                "pane.agent_detected" -> {
+                    val payload = decodeTyped<PaneDetectedPayload>(data, "pane_agent_detected", "pane detected")
+                    HerdrEvent.PaneDetected(
+                        payload.workspaceId,
+                        payload.paneId,
+                        payload.agent,
+                        payload.released,
+                        payload.finalStatus,
+                    )
+                }
+                "pane.agent_status_changed" -> {
+                    val payload = decode<PaneStatusPayload>(data, "pane status")
+                    data["type"]?.jsonPrimitive?.content?.let { type ->
+                        if (type != "pane_agent_status_changed") {
+                            throw HerdrProtocolException("unexpected pane status data type: $type")
+                        }
+                    }
+                    HerdrEvent.PaneStatusChanged(
+                        payload.workspaceId,
+                        payload.paneId,
+                        payload.agentStatus,
+                        payload.agent,
+                        payload.title,
+                        payload.displayAgent,
+                        payload.stateLabels,
+                    )
+                }
+                "layout.updated" -> {
+                    val layout = decodeTyped<LayoutPayload>(data, "layout_updated", "layout updated").layout
+                    validateLayout(layout)
+                    HerdrEvent.LayoutUpdated(layout)
+                }
+                else -> throw HerdrProtocolException("unknown event tag: $event")
             }
-            "layout.updated" -> {
-                val layout = decodeTyped<LayoutPayload>(data, "layout_updated", "layout updated").layout
-                validateLayout(layout)
-                HerdrEvent.LayoutUpdated(layout)
-            }
-            else -> throw HerdrProtocolException("unknown event tag: $event")
-        }
         validateEvent(value)
         return value
     }
 
-    internal fun requireIdentifier(value: String, description: String) {
+    internal fun requireIdentifier(
+        value: String,
+        description: String,
+    ) {
         if (value.isBlank() || value.any(Char::isISOControl)) {
             throw HerdrProtocolException("invalid $description")
         }
     }
 
-    private fun parseObject(line: String): JsonObject = try {
-        HerdrProtocolJson.codec.parseToJsonElement(line).jsonObject
-    } catch (failure: Exception) {
-        throw HerdrProtocolException("message is not a JSON object", failure)
-    }
+    private fun parseObject(line: String): JsonObject =
+        try {
+            HerdrProtocolJson.codec.parseToJsonElement(line).jsonObject
+        } catch (failure: Exception) {
+            throw HerdrProtocolException("message is not a JSON object", failure)
+        }
 
-    private inline fun <reified T> decode(element: JsonElement, description: String): T = try {
-        HerdrProtocolJson.codec.decodeFromJsonElement<T>(element)
-    } catch (failure: Exception) {
-        throw HerdrProtocolException("malformed $description", failure)
-    }
+    private inline fun <reified T> decode(
+        element: JsonElement,
+        description: String,
+    ): T =
+        try {
+            HerdrProtocolJson.codec.decodeFromJsonElement<T>(element)
+        } catch (failure: Exception) {
+            throw HerdrProtocolException("malformed $description", failure)
+        }
 
-    private inline fun <reified T> decodeTyped(data: JsonObject, type: String, description: String): T {
+    private inline fun <reified T> decodeTyped(
+        data: JsonObject,
+        type: String,
+        description: String,
+    ): T {
         ensureType(data, type, description)
         return decode(data, description)
     }
 
-    private fun ensureType(data: JsonObject, type: String, description: String) {
+    private fun ensureType(
+        data: JsonObject,
+        type: String,
+        description: String,
+    ) {
         val actual = data.string("type", "$description data type")
         if (actual != type) {
             throw HerdrProtocolException("unexpected $description data type: $actual")
@@ -837,7 +1026,11 @@ object HerdrProtocol {
         }
     }
 
-    private fun validateAllocation(workspace: HerdrWorkspace, tab: HerdrTab, pane: HerdrPane) {
+    private fun validateAllocation(
+        workspace: HerdrWorkspace,
+        tab: HerdrTab,
+        pane: HerdrPane,
+    ) {
         validateWorkspace(workspace)
         validateTab(tab)
         validatePane(pane)
@@ -923,15 +1116,22 @@ object HerdrProtocol {
         }
     }
 
-    private fun requireUnique(values: List<String>, description: String) {
+    private fun requireUnique(
+        values: List<String>,
+        description: String,
+    ) {
         if (values.distinct().size != values.size) {
             throw HerdrProtocolException("duplicate $description")
         }
     }
 
-    private fun JsonObject.string(key: String, description: String): String {
-        val primitive = this[key]?.jsonPrimitive
-            ?: throw HerdrProtocolException("message is missing $description")
+    private fun JsonObject.string(
+        key: String,
+        description: String,
+    ): String {
+        val primitive =
+            this[key]?.jsonPrimitive
+                ?: throw HerdrProtocolException("message is missing $description")
         if (!primitive.isString) {
             throw HerdrProtocolException("$description must be a string")
         }
@@ -940,15 +1140,19 @@ object HerdrProtocol {
         return value
     }
 
-    private fun JsonElement.objectValue(description: String): JsonObject = try {
-        jsonObject
-    } catch (failure: Exception) {
-        throw HerdrProtocolException("$description is not an object", failure)
-    }
+    private fun JsonElement.objectValue(description: String): JsonObject =
+        try {
+            jsonObject
+        } catch (failure: Exception) {
+            throw HerdrProtocolException("$description is not an object", failure)
+        }
 }
 
 @Serializable
-private data class ErrorBody(val code: String, val message: String)
+private data class ErrorBody(
+    val code: String,
+    val message: String,
+)
 
 @Serializable
 private data class PongResult(
@@ -958,13 +1162,19 @@ private data class PongResult(
 )
 
 @Serializable
-private data class CapabilitiesResult(val capabilities: List<AgentCapability>)
+private data class CapabilitiesResult(
+    val capabilities: List<AgentCapability>,
+)
 
 @Serializable
-private data class SnapshotResult(val snapshot: HerdrSnapshot)
+private data class SnapshotResult(
+    val snapshot: HerdrSnapshot,
+)
 
 @Serializable
-private data class PaneReadResult(val read: HerdrPaneRead)
+private data class PaneReadResult(
+    val read: HerdrPaneRead,
+)
 
 @Serializable
 private data class WorkspaceCreatedResult(
@@ -997,13 +1207,21 @@ private data class WorktreeOpenedResult(
 )
 
 @Serializable
-private data class AgentStartedResult(val agent: HerdrAgent, val argv: List<String>)
+private data class AgentStartedResult(
+    val agent: HerdrAgent,
+    val argv: List<String>,
+)
 
 @Serializable
-private data class AgentResult(val agent: HerdrAgent)
+private data class AgentResult(
+    val agent: HerdrAgent,
+)
 
 @Serializable
-private data class WorkspacePayload(val type: String, val workspace: HerdrWorkspace)
+private data class WorkspacePayload(
+    val type: String,
+    val workspace: HerdrWorkspace,
+)
 
 @Serializable
 private data class WorkspaceClosedPayload(
@@ -1065,7 +1283,10 @@ private data class WorktreeRemovedPayload(
 )
 
 @Serializable
-private data class TabPayload(val type: String, val tab: HerdrTab)
+private data class TabPayload(
+    val type: String,
+    val tab: HerdrTab,
+)
 
 @Serializable
 private data class TabIdentityPayload(
@@ -1092,7 +1313,10 @@ private data class TabMovedPayload(
 )
 
 @Serializable
-private data class PanePayload(val type: String, val pane: HerdrPane)
+private data class PanePayload(
+    val type: String,
+    val pane: HerdrPane,
+)
 
 @Serializable
 private data class PaneIdentityPayload(
@@ -1144,4 +1368,7 @@ private data class PaneStatusPayload(
 )
 
 @Serializable
-private data class LayoutPayload(val type: String, val layout: HerdrPaneLayout)
+private data class LayoutPayload(
+    val type: String,
+    val layout: HerdrPaneLayout,
+)

@@ -34,10 +34,11 @@ class HerdrConnectionTest {
     fun `one shot reads fragmented newline responses and preserves method errors`() {
         ScriptedHerdrServer { index, _, channel ->
             when (index) {
-                0 -> channel.writeFragments(
-                    "{\"id\":\"ping-1\",\"res",
-                    "ult\":{\"type\":\"pong\",\"version\":\"0.7.0\",\"protocol\":22}}\n",
-                )
+                0 ->
+                    channel.writeFragments(
+                        "{\"id\":\"ping-1\",\"res",
+                        "ult\":{\"type\":\"pong\",\"version\":\"0.7.0\",\"protocol\":22}}\n",
+                    )
                 else -> channel.writeLine(fixture("error.json"))
             }
         }.use { server ->
@@ -72,11 +73,12 @@ class HerdrConnectionTest {
             channel.writeLine(fixture("pane-status-event.json"))
         }.use { server ->
             val connection = HerdrConnection(server.socketPath)
-            val attempt = connection.subscribe(
-                HerdrRequest.combinedSubscription("subscribe-1", setOf("p-agent")),
-                onEvent = { if (it is HerdrEvent.PaneStatusChanged) event.countDown() },
-                onDisconnect = { disconnected.countDown() },
-            )
+            val attempt =
+                connection.subscribe(
+                    HerdrRequest.combinedSubscription("subscribe-1", setOf("p-agent")),
+                    onEvent = { if (it is HerdrEvent.PaneStatusChanged) event.countDown() },
+                    onDisconnect = { disconnected.countDown() },
+                )
 
             assertIs<SubscriptionAttempt.Started>(attempt)
             assertTrue(event.await(2, TimeUnit.SECONDS))
@@ -87,17 +89,19 @@ class HerdrConnectionTest {
     @Test
     fun `mutations distinguish definitely not sent rejected and unknown after write`() {
         val missing = Files.createTempDirectory("herdr-missing").resolve("missing.sock")
-        val request = HerdrRequest.mutation(
-            "mutate-1",
-            "agent.prompt",
-            Json.parseToJsonElement("""{"target":"reviewer","text":"hello"}""").jsonObject,
-        )
+        val request =
+            HerdrRequest.mutation(
+                "mutate-1",
+                "agent.prompt",
+                Json.parseToJsonElement("""{"target":"reviewer","text":"hello"}""").jsonObject,
+            )
         assertIs<MutationOutcome.DefinitelyNotSent>(HerdrConnection(missing).mutate(request))
 
         ScriptedHerdrServer { _, _, channel -> channel.writeLine(fixture("error.json")) }.use { server ->
-            val rejected = HerdrConnection(server.socketPath).mutate(
-                HerdrRequest.mutation("subscribe-1", "agent.prompt", request.params),
-            )
+            val rejected =
+                HerdrConnection(server.socketPath).mutate(
+                    HerdrRequest.mutation("subscribe-1", "agent.prompt", request.params),
+                )
             assertEquals("pane_not_found", assertIs<MutationOutcome.Rejected>(rejected).error.code)
         }
 
@@ -107,14 +111,17 @@ class HerdrConnectionTest {
         }
 
         ClosingDuringWriteHerdrServer().use { server ->
-            val largeRequest = HerdrRequest.mutation(
-                "mutate-partial",
-                "agent.prompt",
-                JsonObject(mapOf(
-                    "target" to JsonPrimitive("reviewer"),
-                    "text" to JsonPrimitive("x".repeat(16 * 1_024 * 1_024)),
-                )),
-            )
+            val largeRequest =
+                HerdrRequest.mutation(
+                    "mutate-partial",
+                    "agent.prompt",
+                    JsonObject(
+                        mapOf(
+                            "target" to JsonPrimitive("reviewer"),
+                            "text" to JsonPrimitive("x".repeat(16 * 1_024 * 1_024)),
+                        ),
+                    ),
+                )
 
             assertIs<MutationOutcome.UnknownAfterWrite>(
                 HerdrConnection(server.socketPath).mutate(largeRequest),
@@ -130,11 +137,14 @@ class HerdrConnectionTest {
         val explicit = home.resolve("explicit.sock")
         assertEquals(
             explicit,
-            HerdrConnection.resolveSocketTarget(explicit.toString(), mapOf(
-                "HERDR_SOCKET_PATH" to home.resolve("environment.sock").toString(),
-                "XDG_CONFIG_HOME" to xdg.toString(),
-                "HOME" to home.toString(),
-            )),
+            HerdrConnection.resolveSocketTarget(
+                explicit.toString(),
+                mapOf(
+                    "HERDR_SOCKET_PATH" to home.resolve("environment.sock").toString(),
+                    "XDG_CONFIG_HOME" to xdg.toString(),
+                    "HOME" to home.toString(),
+                ),
+            ),
         )
         assertEquals(
             xdg.resolve("herdr/herdr.sock"),
@@ -145,19 +155,22 @@ class HerdrConnectionTest {
         val capture = home.resolve("capture.txt")
         val pathExecutable = bin.resolve("herdr")
         val fallbackExecutable = home.resolve("fallback-herdr")
-        val script = """#!/bin/sh
+        val script =
+            """#!/bin/sh
             |printf '%s\n%s\n%s\n' "${'$'}1" "${'$'}HERDR_SOCKET_PATH" "${'$'}{HERDR_SESSION-unset}" > "${'$'}CAPTURE"
             |while :; do sleep 1; done
-            |""".trimMargin()
+            |
+            """.trimMargin()
         pathExecutable.writeText(script)
         fallbackExecutable.writeText(script)
         pathExecutable.toFile().setExecutable(true)
         fallbackExecutable.toFile().setExecutable(true)
-        val environment = mapOf(
-            "PATH" to bin.toString(),
-            "CAPTURE" to capture.toString(),
-            "HERDR_SESSION" to "ignored-session",
-        )
+        val environment =
+            mapOf(
+                "PATH" to bin.toString(),
+                "CAPTURE" to capture.toString(),
+                "HERDR_SESSION" to "ignored-session",
+            )
         val connection = HerdrConnection(explicit, environment)
         val started = connection.startHerdr(fallbackExecutable.toString())
 
@@ -170,11 +183,15 @@ class HerdrConnectionTest {
         handle.destroyForcibly()
     }
 
-    private fun fixture(name: String): String = requireNotNull(
-        javaClass.getResource("/protocol-22/$name")
-    ).readText()
+    private fun fixture(name: String): String =
+        requireNotNull(
+            javaClass.getResource("/protocol-22/$name"),
+        ).readText()
 
-    private fun waitUntil(timeout: Duration, condition: () -> Boolean) {
+    private fun waitUntil(
+        timeout: Duration,
+        condition: () -> Boolean,
+    ) {
         val deadline = System.nanoTime() + timeout.toNanos()
         while (!condition()) {
             check(System.nanoTime() < deadline) { "condition did not become true" }
@@ -186,16 +203,18 @@ class HerdrConnectionTest {
 internal class ClosingDuringWriteHerdrServer : AutoCloseable {
     private val directory = Files.createTempDirectory("hiw")
     val socketPath: Path = directory.resolve("s")
-    private val listener = ServerSocketChannel.open(StandardProtocolFamily.UNIX).apply {
-        bind(UnixDomainSocketAddress.of(socketPath))
-    }
-    val acceptedConnections = AtomicInteger()
-    private val serverThread = thread(name = "closing-herdr-server") {
-        listener.accept().use { channel ->
-            acceptedConnections.incrementAndGet()
-            channel.read(ByteBuffer.allocate(1))
+    private val listener =
+        ServerSocketChannel.open(StandardProtocolFamily.UNIX).apply {
+            bind(UnixDomainSocketAddress.of(socketPath))
         }
-    }
+    val acceptedConnections = AtomicInteger()
+    private val serverThread =
+        thread(name = "closing-herdr-server") {
+            listener.accept().use { channel ->
+                acceptedConnections.incrementAndGet()
+                channel.read(ByteBuffer.allocate(1))
+            }
+        }
 
     override fun close() {
         listener.close()
@@ -210,43 +229,47 @@ internal class ScriptedHerdrServer(
 ) : AutoCloseable {
     private val directory = Files.createTempDirectory("herdr-intellij-socket")
     val socketPath: Path = directory.resolve("herdr.sock")
-    private val listener = ServerSocketChannel.open(StandardProtocolFamily.UNIX).apply {
-        bind(UnixDomainSocketAddress.of(socketPath))
-    }
+    private val listener =
+        ServerSocketChannel.open(StandardProtocolFamily.UNIX).apply {
+            bind(UnixDomainSocketAddress.of(socketPath))
+        }
     private val running = AtomicBoolean(true)
     private val failures = CopyOnWriteArrayList<Throwable>()
     private val channels = ConcurrentHashMap.newKeySet<SocketChannel>()
     private val connectionThreads = CopyOnWriteArrayList<Thread>()
     private val requestIndex = AtomicInteger()
     val requests = CopyOnWriteArrayList<JsonObject>()
-    private val serverThread = thread(name = "scripted-herdr-server") {
-        while (running.get()) {
-            val channel = try {
-                listener.accept()
-            } catch (_: Exception) {
-                break
-            }
-            channels += channel
-            connectionThreads += thread(name = "scripted-herdr-connection") {
-                channel.use {
+    private val serverThread =
+        thread(name = "scripted-herdr-server") {
+            while (running.get()) {
+                val channel =
                     try {
-                        val line = Channels.newReader(channel, StandardCharsets.UTF_8).buffered().readLine()
-                        if (line != null) {
-                            val request = Json.parseToJsonElement(line).jsonObject
-                            requests += request
-                            handler(requestIndex.getAndIncrement(), request, channel)
-                        }
-                    } catch (failure: Throwable) {
-                        if (running.get()) {
-                            failures += failure
-                        }
-                    } finally {
-                        channels -= channel
+                        listener.accept()
+                    } catch (_: Exception) {
+                        break
                     }
-                }
+                channels += channel
+                connectionThreads +=
+                    thread(name = "scripted-herdr-connection") {
+                        channel.use {
+                            try {
+                                val line = Channels.newReader(channel, StandardCharsets.UTF_8).buffered().readLine()
+                                if (line != null) {
+                                    val request = Json.parseToJsonElement(line).jsonObject
+                                    requests += request
+                                    handler(requestIndex.getAndIncrement(), request, channel)
+                                }
+                            } catch (failure: Throwable) {
+                                if (running.get()) {
+                                    failures += failure
+                                }
+                            } finally {
+                                channels -= channel
+                            }
+                        }
+                    }
             }
         }
-    }
 
     override fun close() {
         running.set(false)
