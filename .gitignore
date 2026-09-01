@@ -1,6 +1,7 @@
 /.agent/
 /.gradle/
 /.idea/
+/.intellijPlatform/
+/.kotlin/
 /.worktrees/
 /build/
-

@@ -2,5 +2,14 @@
 
 Native JetBrains integration for inspecting and controlling Herdr agents.
 
-The product shape and first implementation slice are being defined through an
-artifact-backed design workflow before plugin code is added.
+The repository currently contains the IntelliJ Platform scaffold and accepted
+architecture decisions. The first command-center implementation is under
+review.
+
+## Build
+
+Use Java 21, then run:
+
+```shell
+./gradlew check buildPlugin
+```

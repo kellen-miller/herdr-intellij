@@ -1,0 +1,23 @@
+<idea-plugin>
+    <id>dev.herdr</id>
+    <name>Herdr</name>
+    <vendor>Herdr</vendor>
+
+    <description><![CDATA[
+        Inspect and control Herdr coding agents from IntelliJ IDEA.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.vcs</depends>
+
+    <resource-bundle>messages.HerdrBundle</resource-bundle>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow
+            id="Herdr"
+            anchor="right"
+            canCloseContents="false"
+            factoryClass="dev.herdr.intellij.HerdrToolWindowFactory"
+            icon="/icons/herdrToolWindow.svg"/>
+    </extensions>
+</idea-plugin>
