@@ -172,7 +172,13 @@ class HerdrControllerTest {
         }.use { server ->
             val controller = HerdrController(HerdrConnection(server.socketPath))
 
-            val live = assertIs<HerdrUiState.Live>(controller.connect().get(3, TimeUnit.SECONDS)).view
+            controller.connect().get(3, TimeUnit.SECONDS)
+            waitUntil {
+                combinedSubscriptions.get() == 2 &&
+                    (controller.currentState() as? HerdrUiState.Live)?.view?.paneIds ==
+                    setOf("p-agent", "p-shell", "p-new")
+            }
+            val live = assertIs<HerdrUiState.Live>(controller.currentState()).view
 
             assertEquals(2, combinedSubscriptions.get())
             assertEquals(setOf("p-agent", "p-shell", "p-new"), live.paneIds)
