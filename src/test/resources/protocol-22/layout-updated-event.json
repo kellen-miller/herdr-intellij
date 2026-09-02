@@ -1,0 +1,19 @@
+{
+  "event": "layout.updated",
+  "data": {
+    "type": "layout_updated",
+    "layout": {
+      "workspace_id": "w-1",
+      "tab_id": "t-1",
+      "zoomed": false,
+      "area": {"x": 0, "y": 0, "width": 120, "height": 40},
+      "focused_pane_id": "p-agent",
+      "panes": [{
+        "pane_id": "p-agent",
+        "focused": true,
+        "rect": {"x": 0, "y": 0, "width": 120, "height": 40}
+      }],
+      "splits": []
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "start-1",
+  "result": {
+    "type": "agent_started",
+    "agent": {
+      "terminal_id": "term-agent",
+      "name": "reviewer",
+      "agent": "codex",
+      "display_agent": "Codex",
+      "agent_status": "working",
+      "screen_detection_skipped": false,
+      "state_labels": {},
+      "tokens": {},
+      "workspace_id": "w-1",
+      "tab_id": "t-1",
+      "pane_id": "p-agent",
+      "focused": true,
+      "launch_pending": false,
+      "interactive_ready": true,
+      "state_change_seq": 9,
+      "cwd": "/repo/worktree",
+      "revision": 7
+    },
+    "argv": ["codex"],
+    "future_field": true
+  }
+}

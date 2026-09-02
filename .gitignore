@@ -5,3 +5,4 @@
 /.kotlin/
 /.worktrees/
 /build/
+/node_modules/

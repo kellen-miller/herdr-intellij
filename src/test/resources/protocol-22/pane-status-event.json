@@ -1,0 +1,1 @@
+{"event":"pane.agent_status_changed","data":{"pane_id":"p-agent","workspace_id":"w-1","agent_status":"blocked","agent":"codex","title":"Approval needed","display_agent":"Codex","state_labels":{"reason":"permission"}}}

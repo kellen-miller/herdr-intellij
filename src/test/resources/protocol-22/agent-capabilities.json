@@ -1,0 +1,31 @@
+{
+  "id": "capabilities-1",
+  "result": {
+    "type": "agent_capabilities",
+    "capabilities": [
+      {"kind": "pi", "label": "Pi"},
+      {"kind": "claude", "label": "Claude Code"},
+      {"kind": "codex", "label": "Codex"},
+      {"kind": "gemini", "label": "Gemini CLI"},
+      {"kind": "cursor", "label": "Cursor Agent CLI"},
+      {"kind": "devin", "label": "Devin CLI"},
+      {"kind": "agy", "label": "Antigravity CLI"},
+      {"kind": "cline", "label": "Cline"},
+      {"kind": "omp", "label": "OMP"},
+      {"kind": "mastracode", "label": "MastraCode"},
+      {"kind": "opencode", "label": "OpenCode"},
+      {"kind": "copilot", "label": "GitHub Copilot CLI"},
+      {"kind": "kimi", "label": "Kimi Code CLI"},
+      {"kind": "kiro", "label": "Kiro CLI"},
+      {"kind": "droid", "label": "Droid"},
+      {"kind": "amp", "label": "Amp"},
+      {"kind": "grok", "label": "Grok CLI"},
+      {"kind": "hermes", "label": "Hermes Agent"},
+      {"kind": "kilo", "label": "Kilo Code CLI"},
+      {"kind": "qodercli", "label": "Qoder CLI"},
+      {"kind": "qwen", "label": "Qwen Code"},
+      {"kind": "maki", "label": "Maki"},
+      {"kind": "muse", "label": "Muse"}
+    ]
+  }
+}
